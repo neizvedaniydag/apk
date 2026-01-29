@@ -54,6 +54,7 @@ fun HomeScreen() {
     val scope = rememberCoroutineScope()
     var systemStatus by remember { mutableStateOf(SystemState.currentStatus) }
     var showSettings by remember { mutableStateOf(false) }
+    var showVideoStream by remember { mutableStateOf(false) } // НОВАЯ ПЕРЕМЕННАЯ
 
     LaunchedEffect(Unit) {
         SystemState.init(context)
@@ -84,18 +85,21 @@ fun HomeScreen() {
         }
     }
 
+    // ОБНОВЛЕННЫЙ AnimatedContent
     AnimatedContent(
         targetState = when {
             !permissionsState.allPermissionsGranted -> 0
-            showSettings -> 1
-            else -> 2
+            showVideoStream -> 1
+            showSettings -> 2
+            else -> 3
         },
         transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(300)) },
         label = "screen"
     ) { screen ->
         when (screen) {
             0 -> PermissionsScreen(onRequestPermissions = { permissionsState.launchMultiplePermissionRequest() })
-            1 -> SettingsScreen(onBack = { showSettings = false })
+            1 -> VideoStreamScreen(onBack = { showVideoStream = false })
+            2 -> SettingsScreen(onBack = { showSettings = false })
             else -> MainContent(
                 modifier = Modifier,
                 status = systemStatus,
@@ -111,7 +115,8 @@ fun HomeScreen() {
                         }
                     }
                 },
-                onSettingsClick = { showSettings = true }
+                onSettingsClick = { showSettings = true },
+                onVideoClick = { showVideoStream = true } // НОВЫЙ ПАРАМЕТР
             )
         }
     }
@@ -156,12 +161,14 @@ fun PermissionsScreen(onRequestPermissions: () -> Unit) {
     }
 }
 
+// ОБНОВЛЕННАЯ MainContent с параметром onVideoClick
 @Composable
 fun MainContent(
     modifier: Modifier = Modifier,
     status: SystemStatus,
     onRefresh: () -> Unit,
-    onSettingsClick: () -> Unit = {}
+    onSettingsClick: () -> Unit = {},
+    onVideoClick: () -> Unit = {} // НОВЫЙ ПАРАМЕТР
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -341,6 +348,65 @@ fun MainContent(
 
         Spacer(Modifier.height(10.dp))
 
+        // ======== НОВАЯ СЕКЦИЯ ВИДЕОНАБЛЮДЕНИЯ ========
+        CleanCard(
+            modifier = Modifier.fillMaxWidth(),
+            backgroundColor = Brush.horizontalGradient(
+                listOf(ModernPurple.copy(0.1f), ModernBlue.copy(0.1f))
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onVideoClick
+                    )
+                    .padding(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(
+                            Brush.radialGradient(listOf(ModernPurple, ModernBlue)),
+                            CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Rounded.Videocam,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = Color.White
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Видеонаблюдение",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = DarkOverlay
+                    )
+                    Text(
+                        "Прямой эфир с ESP32-CAM",
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                }
+                Icon(
+                    Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = Color.Gray
+                )
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+
         ControlButtonsSection(
             status = status,
             onCommand = sendCommand,
@@ -464,9 +530,20 @@ fun ConnectionInfo(mode: ConnectionMode, lastUpdate: Long) {
     }
 }
 
+// ОБНОВЛЕННАЯ CleanCard с поддержкой Brush
 @Composable
-fun CleanCard(modifier: Modifier = Modifier, backgroundColor: Color = Color.White, content: @Composable () -> Unit) {
-    Box(modifier = modifier.background(backgroundColor, RoundedCornerShape(18.dp))) {
+fun CleanCard(
+    modifier: Modifier = Modifier,
+    backgroundColor: Any = Color.White, // Any для поддержки Color и Brush
+    content: @Composable () -> Unit
+) {
+    val backgroundModifier = when (backgroundColor) {
+        is Brush -> modifier.background(backgroundColor, RoundedCornerShape(18.dp))
+        is Color -> modifier.background(backgroundColor, RoundedCornerShape(18.dp))
+        else -> modifier.background(Color.White, RoundedCornerShape(18.dp))
+    }
+    
+    Box(modifier = backgroundModifier) {
         content()
     }
 }

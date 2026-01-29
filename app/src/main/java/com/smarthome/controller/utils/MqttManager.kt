@@ -8,6 +8,7 @@ import com.hivemq.client.mqtt.MqttClient
 import com.hivemq.client.mqtt.mqtt3.Mqtt3AsyncClient
 import com.smarthome.controller.data.SystemState
 import com.smarthome.controller.data.ConnectionMode
+import org.json.JSONObject
 import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
@@ -21,7 +22,16 @@ object MqttManager {
     private var isAutoConnectEnabled = false
     private var appContext: Context? = null
     
+    // ===== ВИДЕО-СТРИМ КОНСТАНТЫ =====
+    private const val VIDEO_STREAM_TOPIC = "user_4bd2b1f5/camera/video/stream"
+    private const val CAMERA_FPS_TOPIC = "user_4bd2b1f5/camera/fps"
+    private const val CAMERA_STATUS_TOPIC = "user_4bd2b1f5/camera/status"
+    private const val CAMERA_CONTROL_TOPIC = "user_4bd2b1f5/camera/control"
+    
     var onConnectionStatusChange: ((Boolean, String) -> Unit)? = null
+    var onVideoFrameReceived: ((ByteArray?, Int?, String?) -> Unit)? = null // НОВЫЙ CALLBACK
+    
+    private var isVideoStreamSubscribed = false // Флаг подписки на видео
     
     private fun hasInternetConnection(context: Context): Boolean {
         try {
@@ -199,6 +209,11 @@ object MqttManager {
                         Log.d(TAG, "✅ Connected!")
                         onConnectionStatusChange?.invoke(true, "Подключено")
                         subscribeToTopics()
+                        
+                        // Автоматически подписываемся на видео, если был запрос
+                        if (isVideoStreamSubscribed) {
+                            subscribeToVideoTopics()
+                        }
                     }
                 }
             
@@ -340,12 +355,187 @@ object MqttManager {
         }
     }
     
+    // ========== ВИДЕО-СТРИМ ФУНКЦИИ ==========
+    
+    fun subscribeToVideoStream(callback: (frameData: ByteArray?, fps: Int?, status: String?) -> Unit) {
+        onVideoFrameReceived = callback
+        isVideoStreamSubscribed = true
+        
+        if (mqttClient?.state?.isConnected == true) {
+            subscribeToVideoTopics()
+        } else {
+            Log.d(TAG, "📹 Video subscription requested, will subscribe on connect")
+            callback(null, null, "Подключение к камере...")
+        }
+    }
+    
+    private fun subscribeToVideoTopics() {
+        try {
+            Log.d(TAG, "📹 Subscribing to video stream topics...")
+            
+            // Подписка на видео поток (бинарные данные)
+            mqttClient?.subscribeWith()
+                ?.topicFilter(VIDEO_STREAM_TOPIC)
+                ?.qos(com.hivemq.client.mqtt.datatypes.MqttQos.AT_MOST_ONCE) // QoS 0 для скорости
+                ?.callback { message ->
+                    try {
+                        val frameData = message.payloadAsBytes
+                        onVideoFrameReceived?.invoke(frameData, null, null)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error processing video frame: ${e.message}", e)
+                    }
+                }
+                ?.send()
+                ?.whenComplete { _, throwable ->
+                    if (throwable != null) {
+                        Log.e(TAG, "❌ Subscribe to video stream failed: ${throwable.message}")
+                        onVideoFrameReceived?.invoke(null, null, "Ошибка подписки")
+                    } else {
+                        Log.d(TAG, "✅ Subscribed to video stream")
+                        onVideoFrameReceived?.invoke(null, null, "Подключено к камере")
+                    }
+                }
+            
+            // Подписка на FPS
+            mqttClient?.subscribeWith()
+                ?.topicFilter(CAMERA_FPS_TOPIC)
+                ?.qos(com.hivemq.client.mqtt.datatypes.MqttQos.AT_MOST_ONCE)
+                ?.callback { message ->
+                    try {
+                        val fpsStr = String(message.payloadAsBytes)
+                        val fps = fpsStr.toIntOrNull()
+                        if (fps != null) {
+                            onVideoFrameReceived?.invoke(null, fps, null)
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error parsing FPS: ${e.message}", e)
+                    }
+                }
+                ?.send()
+                ?.whenComplete { _, throwable ->
+                    if (throwable != null) {
+                        Log.e(TAG, "❌ Subscribe to FPS failed: ${throwable.message}")
+                    } else {
+                        Log.d(TAG, "✅ Subscribed to FPS")
+                    }
+                }
+            
+            // Подписка на статус камеры (JSON)
+            mqttClient?.subscribeWith()
+                ?.topicFilter(CAMERA_STATUS_TOPIC)
+                ?.qos(com.hivemq.client.mqtt.datatypes.MqttQos.AT_LEAST_ONCE)
+                ?.callback { message ->
+                    try {
+                        val statusJson = String(message.payloadAsBytes)
+                        val json = JSONObject(statusJson)
+                        
+                        val streaming = json.optBoolean("streaming", false)
+                        val fps = json.optInt("fps", 0)
+                        val statusText = if (streaming) "Стрим активен ($fps FPS)" else "Стрим остановлен"
+                        
+                        onVideoFrameReceived?.invoke(null, fps, statusText)
+                        Log.d(TAG, "📹 Camera status: $statusText")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error parsing camera status: ${e.message}", e)
+                    }
+                }
+                ?.send()
+                ?.whenComplete { _, throwable ->
+                    if (throwable != null) {
+                        Log.e(TAG, "❌ Subscribe to camera status failed: ${throwable.message}")
+                    } else {
+                        Log.d(TAG, "✅ Subscribed to camera status")
+                    }
+                }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ subscribeToVideoTopics error: ${e.message}", e)
+            onVideoFrameReceived?.invoke(null, null, "Ошибка: ${e.message}")
+        }
+    }
+    
+    fun unsubscribeFromVideoStream() {
+        isVideoStreamSubscribed = false
+        
+        try {
+            mqttClient?.unsubscribeWith()
+                ?.topicFilter(VIDEO_STREAM_TOPIC)
+                ?.send()
+            
+            mqttClient?.unsubscribeWith()
+                ?.topicFilter(CAMERA_FPS_TOPIC)
+                ?.send()
+            
+            mqttClient?.unsubscribeWith()
+                ?.topicFilter(CAMERA_STATUS_TOPIC)
+                ?.send()
+            
+            Log.d(TAG, "📹 Unsubscribed from video topics")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error unsubscribing from video: ${e.message}", e)
+        }
+        
+        onVideoFrameReceived = null
+    }
+    
+    fun sendCameraCommand(context: Context, command: String) {
+        try {
+            Log.d(TAG, "📹 Camera command: $command")
+            
+            if (!shouldUseMqtt()) {
+                Log.d(TAG, "📴 SMS Only mode - camera command ignored")
+                onVideoFrameReceived?.invoke(null, null, "MQTT недоступен")
+                return
+            }
+            
+            if (!hasInternetConnection(context)) {
+                Log.d(TAG, "⚠️ No internet for camera command")
+                onVideoFrameReceived?.invoke(null, null, "Нет интернета")
+                return
+            }
+            
+            if (mqttClient?.state?.isConnected != true) {
+                Log.d(TAG, "⚠️ Not connected, cannot send camera command")
+                onVideoFrameReceived?.invoke(null, null, "Не подключено к MQTT")
+                return
+            }
+            
+            mqttClient?.publishWith()
+                ?.topic(CAMERA_CONTROL_TOPIC)
+                ?.payload(command.toByteArray())
+                ?.qos(com.hivemq.client.mqtt.datatypes.MqttQos.AT_MOST_ONCE)
+                ?.send()
+                ?.whenComplete { _, throwable ->
+                    if (throwable != null) {
+                        Log.e(TAG, "❌ Camera command failed: ${throwable.message}")
+                        onVideoFrameReceived?.invoke(null, null, "Ошибка команды")
+                    } else {
+                        Log.d(TAG, "📹 Camera command sent: $command")
+                        
+                        val statusMsg = when (command) {
+                            "STREAM_ON" -> "Запуск стрима..."
+                            "STREAM_OFF" -> "Остановка стрима..."
+                            "STATUS" -> "Запрос статуса..."
+                            else -> "Команда отправлена"
+                        }
+                        onVideoFrameReceived?.invoke(null, null, statusMsg)
+                    }
+                }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ sendCameraCommand error: ${e.message}", e)
+            onVideoFrameReceived?.invoke(null, null, "Ошибка: ${e.message}")
+        }
+    }
+    
     fun disconnect() {
         try {
             mqttClient?.disconnect()
             mqttClient = null
             isConnecting = false
+            isVideoStreamSubscribed = false
             onConnectionStatusChange?.invoke(false, "Отключено")
+            onVideoFrameReceived?.invoke(null, null, "Отключено")
             Log.d(TAG, "Disconnected")
         } catch (e: Exception) {
             Log.e(TAG, "Disconnect error: ${e.message}", e)
