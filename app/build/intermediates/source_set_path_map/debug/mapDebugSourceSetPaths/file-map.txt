@@ -1,0 +1,48 @@
+com.smarthome.controller.app-jetified-lifecycle-viewmodel-savedstate-2.7.0-0 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/0414f0f09379069562fb045ee4053ab1/transformed/jetified-lifecycle-viewmodel-savedstate-2.7.0/res
+com.smarthome.controller.app-jetified-foundation-layout-release-1 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/0be0522512a837aa9a4ba33a5a916db2/transformed/jetified-foundation-layout-release/res
+com.smarthome.controller.app-jetified-lifecycle-viewmodel-compose-2.7.0-2 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/0be39f75143a8d3290091d85f74a69b0/transformed/jetified-lifecycle-viewmodel-compose-2.7.0/res
+com.smarthome.controller.app-jetified-lifecycle-runtime-ktx-2.7.0-3 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/16414f3b4e1642b1360e543c2aa03318/transformed/jetified-lifecycle-runtime-ktx-2.7.0/res
+com.smarthome.controller.app-jetified-animation-core-release-4 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/18e02bc8c7f59a64eb4d825ce55167f2/transformed/jetified-animation-core-release/res
+com.smarthome.controller.app-jetified-ui-tooling-release-5 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/2b8daea363a3a7ab19307d038430091c/transformed/jetified-ui-tooling-release/res
+com.smarthome.controller.app-jetified-emoji2-1.3.0-6 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/30afe8ad67d8f27c7ed352da7a815720/transformed/jetified-emoji2-1.3.0/res
+com.smarthome.controller.app-jetified-customview-poolingcontainer-1.0.0-7 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/32a2e0734f156f487033b9c6dcfd20b5/transformed/jetified-customview-poolingcontainer-1.0.0/res
+com.smarthome.controller.app-jetified-runtime-saveable-release-8 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/385ea8bf774d2a8a45f4072ccf415bae/transformed/jetified-runtime-saveable-release/res
+com.smarthome.controller.app-jetified-ui-release-9 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/387aa55027d2c21ace64c4db4009e4ba/transformed/jetified-ui-release/res
+com.smarthome.controller.app-lifecycle-livedata-core-2.7.0-10 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/3904c4c5d51073815091286ea6c9f3f0/transformed/lifecycle-livedata-core-2.7.0/res
+com.smarthome.controller.app-jetified-activity-1.8.2-11 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/53ca60d459b1ca468d6c61c58c97c105/transformed/jetified-activity-1.8.2/res
+com.smarthome.controller.app-lifecycle-runtime-2.7.0-12 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/54240b0a4ef021e569de258256ba3b2d/transformed/lifecycle-runtime-2.7.0/res
+com.smarthome.controller.app-jetified-foundation-release-13 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/58b96a66fef25e8c3679e86ca4d51dd3/transformed/jetified-foundation-release/res
+com.smarthome.controller.app-core-1.12.0-14 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/5e110398519f66ab7fd7d708e6cdcbf4/transformed/core-1.12.0/res
+com.smarthome.controller.app-jetified-ui-graphics-release-15 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/607a129c16da9f34012c38c0a3c8f445/transformed/jetified-ui-graphics-release/res
+com.smarthome.controller.app-jetified-core-ktx-1.12.0-16 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/6f971443f4dadaf5bbdf273c820c4f19/transformed/jetified-core-ktx-1.12.0/res
+com.smarthome.controller.app-jetified-savedstate-1.2.1-17 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/7818b6e61f1df5ecaac2abc2a86a0bc4/transformed/jetified-savedstate-1.2.1/res
+com.smarthome.controller.app-jetified-savedstate-ktx-1.2.1-18 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/7851d2d90762b1731648366312df3a38/transformed/jetified-savedstate-ktx-1.2.1/res
+com.smarthome.controller.app-lifecycle-viewmodel-2.7.0-19 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/7c20665d229087b5b17007552aa8dde3/transformed/lifecycle-viewmodel-2.7.0/res
+com.smarthome.controller.app-jetified-runtime-release-20 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/7ed9067b670261055b74a8b6d86f3f7a/transformed/jetified-runtime-release/res
+com.smarthome.controller.app-jetified-animation-release-21 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/926f1c3384f96f568c3572f5b07c800e/transformed/jetified-animation-release/res
+com.smarthome.controller.app-jetified-material-release-22 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/a90d02e5f53a77a6fdbcc42d929ee704/transformed/jetified-material-release/res
+com.smarthome.controller.app-jetified-ui-tooling-data-release-23 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/aa5674444ca756f61cbfd8ab93ec4ebe/transformed/jetified-ui-tooling-data-release/res
+com.smarthome.controller.app-jetified-ui-geometry-release-24 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/ac04dd41c5ed45f1fca1408d92581a50/transformed/jetified-ui-geometry-release/res
+com.smarthome.controller.app-jetified-ui-tooling-preview-release-25 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/b0f14384947d19735e6eabec06600aba/transformed/jetified-ui-tooling-preview-release/res
+com.smarthome.controller.app-jetified-material-icons-core-release-26 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/b51595011fefe2e0f199d36b0c6d70f7/transformed/jetified-material-icons-core-release/res
+com.smarthome.controller.app-jetified-startup-runtime-1.1.1-27 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/c84d559aed485476f260e16a8e490124/transformed/jetified-startup-runtime-1.1.1/res
+com.smarthome.controller.app-jetified-ui-test-manifest-1.6.1-28 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/ca1fc07f9f811a30785acc6e0d1e0cc1/transformed/jetified-ui-test-manifest-1.6.1/res
+com.smarthome.controller.app-jetified-lifecycle-process-2.7.0-29 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/cdd8149f1f15a80cc87be85b4f3ff427/transformed/jetified-lifecycle-process-2.7.0/res
+com.smarthome.controller.app-jetified-ui-text-release-30 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/d0f61303a6e4fb0a4ba633beb75d8cd0/transformed/jetified-ui-text-release/res
+com.smarthome.controller.app-jetified-material-icons-extended-release-31 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/d3c1636fa1c5bc518a649297ef2f85d8/transformed/jetified-material-icons-extended-release/res
+com.smarthome.controller.app-core-runtime-2.2.0-32 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/db006c9aab40dea68892ee7c8717c222/transformed/core-runtime-2.2.0/res
+com.smarthome.controller.app-jetified-lifecycle-viewmodel-ktx-2.7.0-33 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/e6f54eb2d2cedab6cbdd69eb33f0eeec/transformed/jetified-lifecycle-viewmodel-ktx-2.7.0/res
+com.smarthome.controller.app-jetified-ui-util-release-34 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/e72c88c2f60c45c51612c61e8a4d7173/transformed/jetified-ui-util-release/res
+com.smarthome.controller.app-jetified-material-ripple-release-35 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/eb1f97c689dff1b6e3ebe50097037577/transformed/jetified-material-ripple-release/res
+com.smarthome.controller.app-jetified-material3-release-36 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/ec8cf567999bc9180f6ae4e0943480c2/transformed/jetified-material3-release/res
+com.smarthome.controller.app-jetified-ui-unit-release-37 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/efa6e93f3e9d2150d32f9da812975996/transformed/jetified-ui-unit-release/res
+com.smarthome.controller.app-jetified-profileinstaller-1.3.0-38 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f2eddd4e31d7dfbaccbf20874d5136a4/transformed/jetified-profileinstaller-1.3.0/res
+com.smarthome.controller.app-jetified-annotation-experimental-1.4.0-39 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f3677edd465b327160e76f62f4d4293d/transformed/jetified-annotation-experimental-1.4.0/res
+com.smarthome.controller.app-jetified-activity-compose-1.8.2-40 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f515656e16ed4f4e80d9d8789d4cbe43/transformed/jetified-activity-compose-1.8.2/res
+com.smarthome.controller.app-jetified-activity-ktx-1.8.2-41 /Users/temirlanrasidov/.gradle/caches/8.13/transforms/ff734975e5c08f851f386299726cd2b8/transformed/jetified-activity-ktx-1.8.2/res
+com.smarthome.controller.app-resValues-42 /Users/temirlanrasidov/Downloads/project 3/app/build/generated/res/resValues/debug
+com.smarthome.controller.app-packageDebugResources-43 /Users/temirlanrasidov/Downloads/project 3/app/build/intermediates/incremental/debug/packageDebugResources/merged.dir
+com.smarthome.controller.app-packageDebugResources-44 /Users/temirlanrasidov/Downloads/project 3/app/build/intermediates/incremental/debug/packageDebugResources/stripped.dir
+com.smarthome.controller.app-debug-45 /Users/temirlanrasidov/Downloads/project 3/app/build/intermediates/merged_res/debug/mergeDebugResources
+com.smarthome.controller.app-debug-46 /Users/temirlanrasidov/Downloads/project 3/app/src/debug/res
+com.smarthome.controller.app-main-47 /Users/temirlanrasidov/Downloads/project 3/app/src/main/res

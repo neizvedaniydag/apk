@@ -1,0 +1,189 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.smarthome.controller"
+4    android:versionCode="1"
+5    android:versionName="1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="24"
+9        android:targetSdkVersion="34" />
+10
+11    <uses-permission android:name="android.permission.SEND_SMS" />
+11-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:3:5-67
+11-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:3:22-64
+12    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+12-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:4:5-70
+12-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:4:22-67
+13    <uses-permission android:name="android.permission.READ_SMS" />
+13-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:5:5-67
+13-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:5:22-64
+14    <uses-permission android:name="android.permission.INTERNET" />
+14-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:6:5-67
+14-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:6:22-64
+15    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+15-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:7:5-79
+15-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:7:22-76
+16    <uses-permission android:name="android.permission.WAKE_LOCK" />
+16-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:8:5-68
+16-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:8:22-65
+17    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+17-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:9:5-77
+17-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:9:22-74
+18    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+18-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:10:5-77
+18-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:10:22-74
+19    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+19-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:11:5-87
+19-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:11:22-84
+20
+21    <permission
+21-->[androidx.core:core:1.12.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/5e110398519f66ab7fd7d708e6cdcbf4/transformed/core-1.12.0/AndroidManifest.xml:22:5-24:47
+22        android:name="com.smarthome.controller.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+22-->[androidx.core:core:1.12.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/5e110398519f66ab7fd7d708e6cdcbf4/transformed/core-1.12.0/AndroidManifest.xml:23:9-81
+23        android:protectionLevel="signature" />
+23-->[androidx.core:core:1.12.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/5e110398519f66ab7fd7d708e6cdcbf4/transformed/core-1.12.0/AndroidManifest.xml:24:9-44
+24
+25    <uses-permission android:name="com.smarthome.controller.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+25-->[androidx.core:core:1.12.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/5e110398519f66ab7fd7d708e6cdcbf4/transformed/core-1.12.0/AndroidManifest.xml:26:5-97
+25-->[androidx.core:core:1.12.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/5e110398519f66ab7fd7d708e6cdcbf4/transformed/core-1.12.0/AndroidManifest.xml:26:22-94
+26
+27    <application
+27-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:13:5-44:19
+28        android:allowBackup="true"
+28-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:14:9-35
+29        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+29-->[androidx.core:core:1.12.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/5e110398519f66ab7fd7d708e6cdcbf4/transformed/core-1.12.0/AndroidManifest.xml:28:18-86
+30        android:debuggable="true"
+31        android:extractNativeLibs="false"
+32        android:icon="@android:drawable/ic_dialog_info"
+32-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:15:9-56
+33        android:label="SmartHome"
+33-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:16:9-34
+34        android:supportsRtl="true" >
+34-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:17:9-35
+35        <activity
+35-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:19:9-26:20
+36            android:name="com.smarthome.controller.MainActivity"
+36-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:20:13-41
+37            android:exported="true" >
+37-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:21:13-36
+38            <intent-filter>
+38-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:22:13-25:29
+39                <action android:name="android.intent.action.MAIN" />
+39-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:23:17-69
+39-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:23:25-66
+40
+41                <category android:name="android.intent.category.LAUNCHER" />
+41-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:24:17-77
+41-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:24:27-74
+42            </intent-filter>
+43        </activity>
+44
+45        <receiver
+45-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:28:1-34:12
+46            android:name="com.smarthome.controller.service.SmsReceiver"
+46-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:29:5-40
+47            android:exported="true" >
+47-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:30:5-28
+48            <intent-filter android:priority="999" >
+48-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:31:5-33:21
+48-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:31:20-42
+49                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+49-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:32:9-74
+49-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:32:17-71
+50            </intent-filter>
+51        </receiver>
+52
+53        <service
+53-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:37:9-41:56
+54            android:name="com.smarthome.controller.service.SmsMonitorService"
+54-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:38:13-54
+55            android:enabled="true"
+55-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:39:13-35
+56            android:exported="false"
+56-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:40:13-37
+57            android:foregroundServiceType="dataSync" />
+57-->/Users/temirlanrasidov/Downloads/project 3/app/src/main/AndroidManifest.xml:41:13-53
+58
+59        <!-- НЕТ MQTT SERVICE! HiveMQ не требует Service! -->
+60        <activity
+60-->[androidx.compose.ui:ui-test-manifest:1.6.1] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/ca1fc07f9f811a30785acc6e0d1e0cc1/transformed/jetified-ui-test-manifest-1.6.1/AndroidManifest.xml:23:9-25:39
+61            android:name="androidx.activity.ComponentActivity"
+61-->[androidx.compose.ui:ui-test-manifest:1.6.1] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/ca1fc07f9f811a30785acc6e0d1e0cc1/transformed/jetified-ui-test-manifest-1.6.1/AndroidManifest.xml:24:13-63
+62            android:exported="true" />
+62-->[androidx.compose.ui:ui-test-manifest:1.6.1] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/ca1fc07f9f811a30785acc6e0d1e0cc1/transformed/jetified-ui-test-manifest-1.6.1/AndroidManifest.xml:25:13-36
+63        <activity
+63-->[androidx.compose.ui:ui-tooling-android:1.6.1] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/2b8daea363a3a7ab19307d038430091c/transformed/jetified-ui-tooling-release/AndroidManifest.xml:23:9-25:39
+64            android:name="androidx.compose.ui.tooling.PreviewActivity"
+64-->[androidx.compose.ui:ui-tooling-android:1.6.1] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/2b8daea363a3a7ab19307d038430091c/transformed/jetified-ui-tooling-release/AndroidManifest.xml:24:13-71
+65            android:exported="true" />
+65-->[androidx.compose.ui:ui-tooling-android:1.6.1] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/2b8daea363a3a7ab19307d038430091c/transformed/jetified-ui-tooling-release/AndroidManifest.xml:25:13-36
+66
+67        <provider
+67-->[androidx.emoji2:emoji2:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/30afe8ad67d8f27c7ed352da7a815720/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:24:9-32:20
+68            android:name="androidx.startup.InitializationProvider"
+68-->[androidx.emoji2:emoji2:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/30afe8ad67d8f27c7ed352da7a815720/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:25:13-67
+69            android:authorities="com.smarthome.controller.androidx-startup"
+69-->[androidx.emoji2:emoji2:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/30afe8ad67d8f27c7ed352da7a815720/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:26:13-68
+70            android:exported="false" >
+70-->[androidx.emoji2:emoji2:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/30afe8ad67d8f27c7ed352da7a815720/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:27:13-37
+71            <meta-data
+71-->[androidx.emoji2:emoji2:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/30afe8ad67d8f27c7ed352da7a815720/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:29:13-31:52
+72                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+72-->[androidx.emoji2:emoji2:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/30afe8ad67d8f27c7ed352da7a815720/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:30:17-75
+73                android:value="androidx.startup" />
+73-->[androidx.emoji2:emoji2:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/30afe8ad67d8f27c7ed352da7a815720/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:31:17-49
+74            <meta-data
+74-->[androidx.lifecycle:lifecycle-process:2.7.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/cdd8149f1f15a80cc87be85b4f3ff427/transformed/jetified-lifecycle-process-2.7.0/AndroidManifest.xml:29:13-31:52
+75                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+75-->[androidx.lifecycle:lifecycle-process:2.7.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/cdd8149f1f15a80cc87be85b4f3ff427/transformed/jetified-lifecycle-process-2.7.0/AndroidManifest.xml:30:17-78
+76                android:value="androidx.startup" />
+76-->[androidx.lifecycle:lifecycle-process:2.7.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/cdd8149f1f15a80cc87be85b4f3ff427/transformed/jetified-lifecycle-process-2.7.0/AndroidManifest.xml:31:17-49
+77            <meta-data
+77-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f2eddd4e31d7dfbaccbf20874d5136a4/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:29:13-31:52
+78                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+78-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f2eddd4e31d7dfbaccbf20874d5136a4/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:30:17-85
+79                android:value="androidx.startup" />
+79-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f2eddd4e31d7dfbaccbf20874d5136a4/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:31:17-49
+80        </provider>
+81
+82        <receiver
+82-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f2eddd4e31d7dfbaccbf20874d5136a4/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:34:9-52:20
+83            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+83-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f2eddd4e31d7dfbaccbf20874d5136a4/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:35:13-76
+84            android:directBootAware="false"
+84-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f2eddd4e31d7dfbaccbf20874d5136a4/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:36:13-44
+85            android:enabled="true"
+85-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f2eddd4e31d7dfbaccbf20874d5136a4/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:37:13-35
+86            android:exported="true"
+86-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f2eddd4e31d7dfbaccbf20874d5136a4/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:38:13-36
+87            android:permission="android.permission.DUMP" >
+87-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f2eddd4e31d7dfbaccbf20874d5136a4/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:39:13-57
+88            <intent-filter>
+88-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f2eddd4e31d7dfbaccbf20874d5136a4/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:40:13-42:29
+89                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+89-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f2eddd4e31d7dfbaccbf20874d5136a4/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:41:17-91
+89-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f2eddd4e31d7dfbaccbf20874d5136a4/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:41:25-88
+90            </intent-filter>
+91            <intent-filter>
+91-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f2eddd4e31d7dfbaccbf20874d5136a4/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:43:13-45:29
+92                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+92-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f2eddd4e31d7dfbaccbf20874d5136a4/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:44:17-85
+92-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f2eddd4e31d7dfbaccbf20874d5136a4/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:44:25-82
+93            </intent-filter>
+94            <intent-filter>
+94-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f2eddd4e31d7dfbaccbf20874d5136a4/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:46:13-48:29
+95                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+95-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f2eddd4e31d7dfbaccbf20874d5136a4/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:47:17-88
+95-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f2eddd4e31d7dfbaccbf20874d5136a4/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:47:25-85
+96            </intent-filter>
+97            <intent-filter>
+97-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f2eddd4e31d7dfbaccbf20874d5136a4/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:49:13-51:29
+98                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+98-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f2eddd4e31d7dfbaccbf20874d5136a4/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:50:17-95
+98-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/temirlanrasidov/.gradle/caches/8.13/transforms/f2eddd4e31d7dfbaccbf20874d5136a4/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:50:25-92
+99            </intent-filter>
+100        </receiver>
+101    </application>
+102
+103</manifest>
