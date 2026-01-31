@@ -280,10 +280,11 @@ fun PremiumDashboard(
             StatusHeroCard(status)
 
             // 4. VIDEO PREVIEW
-            VideoPreviewCard(
-                onClick = onVideoClick,
-                mqttConnected = mqttState.isConnected
-            )
+VideoPreviewCard(
+    onClick = onVideoClick,
+    mqttConnected = mqttState.isConnected,
+    status = status
+)
 
             // 5. SENSORS GRID
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -416,8 +417,13 @@ fun StatusHeroCard(status: SystemStatus) {
     }
 }
 
+
 @Composable
-fun VideoPreviewCard(onClick: () -> Unit, mqttConnected: Boolean) {
+fun VideoPreviewCard(
+    onClick: () -> Unit, 
+    mqttConnected: Boolean,
+    status: SystemStatus
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -425,6 +431,17 @@ fun VideoPreviewCard(onClick: () -> Unit, mqttConnected: Boolean) {
     
     var lastPreviewRequest by remember { mutableStateOf(0L) }
     var isLoadingPreview by remember { mutableStateOf(false) }
+
+    // 🔥 ДОБАВЛЕНО: Актуальность превью
+    val isPreviewStale = remember(status.lastUpdate) {
+        val ageSeconds = (System.currentTimeMillis() - status.lastUpdate) / 1000
+        ageSeconds > 30 || status.lastUpdate == 0L
+    }
+    
+    val shouldShowPreview = previewBitmap != null && 
+                           mqttConnected && 
+                           !isPreviewStale &&
+                           (status.alarmEnabled || status.streaming)
 
     fun requestPreview() {
         if (!mqttConnected) return
@@ -450,14 +467,14 @@ fun VideoPreviewCard(onClick: () -> Unit, mqttConnected: Boolean) {
         }
     }
 
-    LaunchedEffect(mqttConnected) {
-        if (mqttConnected) {
+    LaunchedEffect(mqttConnected, status.alarmEnabled) {
+        if (mqttConnected && status.alarmEnabled) {
             delay(2000)
             requestPreview()
             
-            while (mqttConnected) {
+            while (mqttConnected && status.alarmEnabled) {
                 delay(15000)
-                if (mqttConnected) {
+                if (mqttConnected && status.alarmEnabled) {
                     requestPreview()
                 }
             }
@@ -473,7 +490,7 @@ fun VideoPreviewCard(onClick: () -> Unit, mqttConnected: Boolean) {
             .clickable(enabled = mqttConnected) { onClick() }
     ) {
         // === BACKGROUND IMAGE ===
-        if (previewBitmap != null) {
+        if (shouldShowPreview) {
             Image(
                 bitmap = previewBitmap!!.asImageBitmap(),
                 contentDescription = null,
@@ -507,7 +524,7 @@ fun VideoPreviewCard(onClick: () -> Unit, mqttConnected: Boolean) {
             }
         }
 
-        // 🔥 МИНИМАЛЬНЫЙ Vignette
+        // Vignette
         Box(
             Modifier
                 .fillMaxSize()
@@ -523,7 +540,7 @@ fun VideoPreviewCard(onClick: () -> Unit, mqttConnected: Boolean) {
                 )
         )
 
-        // 🔥 ПРИОРИТЕТ 1: OFFLINE - показываем ТОЛЬКО когда нет связи
+        // 🔥 ПРИОРИТЕТ 1: OFFLINE
         if (!mqttConnected) {
             Box(
                 Modifier
@@ -549,8 +566,35 @@ fun VideoPreviewCard(onClick: () -> Unit, mqttConnected: Boolean) {
                     )
                 }
             }
-        } 
-        // 🔥 ПРИОРИТЕТ 2: LOADING - показываем только если есть связь И идёт загрузка
+        }
+        // 🔥 ПРИОРИТЕТ 2: Система выключена
+        else if (!status.alarmEnabled && !status.streaming) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(0.5f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        Icons.Rounded.Videocam,
+                        null,
+                        tint = Color.White.copy(0.4f),
+                        modifier = Modifier.size(40.dp)
+                    )
+                    Text(
+                        "Камера выключена",
+                        color = Color.White.copy(0.8f),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+        // 🔥 ПРИОРИТЕТ 3: LOADING
         else if (isLoadingPreview) {
             Box(
                 Modifier
@@ -576,8 +620,8 @@ fun VideoPreviewCard(onClick: () -> Unit, mqttConnected: Boolean) {
                 }
             }
         }
-        // 🔥 ПРИОРИТЕТ 3: PLAY BUTTON - показываем только если всё ок
-        else {
+        // 🔥 ПРИОРИТЕТ 4: PLAY BUTTON
+        else if (shouldShowPreview) {
             Box(
                 Modifier
                     .align(Alignment.Center)
@@ -602,72 +646,42 @@ fun VideoPreviewCard(onClick: () -> Unit, mqttConnected: Boolean) {
             }
         }
 
-        // 🔥 ВЕРХНЯЯ ПАНЕЛЬ - показываем всегда
-        Box(
-            Modifier
-                .align(Alignment.TopStart)
-                .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color.Black.copy(0.3f),
-                            Color.Transparent
+        // 🔥 ВЕРХНЯЯ ПАНЕЛЬ - только кнопка обновления
+        if (mqttConnected && status.alarmEnabled) {
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.Black.copy(0.3f),
+                                Color.Transparent
+                            )
                         )
                     )
-                )
-                .padding(16.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(16.dp)
             ) {
-                // ЭФИР - только когда подключено и не грузится
-                if (mqttConnected && !isLoadingPreview) {
-                    Box(
-                        modifier = Modifier
-                            .background(
-                                Color(0xFFEF4444).copy(0.95f),
-                                RoundedCornerShape(6.dp)
-                            )
-                            .padding(horizontal = 10.dp, vertical = 5.dp)
-                    ) {
-                        Text(
-                            "ЭФИР",
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.5.sp
+                IconButton(
+                    onClick = { requestPreview() },
+                    enabled = !isLoadingPreview,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(
+                            Color.Black.copy(0.25f),
+                            CircleShape
                         )
-                    }
-                } else {
-                    Spacer(Modifier.width(1.dp))
-                }
-                
-                // Кнопка обновления - только когда подключено
-                if (mqttConnected) {
-                    IconButton(
-                        onClick = { requestPreview() },
-                        enabled = !isLoadingPreview,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(
-                                Color.Black.copy(0.25f),
-                                CircleShape
-                            )
-                    ) {
-                        Icon(
-                            Icons.Rounded.Refresh,
-                            contentDescription = "Обновить",
-                            tint = Color.White.copy(if (isLoadingPreview) 0.4f else 0.9f),
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+                ) {
+                    Icon(
+                        Icons.Rounded.Refresh,
+                        contentDescription = "Обновить",
+                        tint = Color.White.copy(if (isLoadingPreview) 0.4f else 0.9f),
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
         }
         
-        // 🔥 НИЖНЯЯ ПАНЕЛЬ - показываем всегда
+        // НИЖНЯЯ ПАНЕЛЬ
         Column(
             Modifier
                 .align(Alignment.BottomStart)
@@ -693,8 +707,9 @@ fun VideoPreviewCard(onClick: () -> Unit, mqttConnected: Boolean) {
             Text(
                 when {
                     !mqttConnected -> "Нет связи"
+                    !status.alarmEnabled && !status.streaming -> "Выключена"
                     isLoadingPreview -> "Загрузка"
-                    previewBitmap != null -> "Нажмите для трансляции"
+                    shouldShowPreview -> "Нажмите для трансляции"
                     else -> "Ожидание данных"
                 }, 
                 fontSize = 12.sp, 
@@ -703,6 +718,8 @@ fun VideoPreviewCard(onClick: () -> Unit, mqttConnected: Boolean) {
         }
     }
 }
+
+
 
 
 

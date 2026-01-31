@@ -10,6 +10,11 @@ import androidx.core.app.NotificationManagerCompat
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import com.smarthome.controller.data.HistoryEvent
+import com.smarthome.controller.data.HistoryRepository
 
 object NotificationHelper {
     private const val CHANNEL_ID = "alarm_channel"
@@ -29,20 +34,36 @@ object NotificationHelper {
         }
     }
 
-    fun sendNotification(context: Context, title: String, message: String) {
-        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+fun sendNotification(context: Context, title: String, message: String) {
+    if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) 
+        != PackageManager.PERMISSION_GRANTED) return
 
-        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle(title)
-            .setContentText(message)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
+    // Существующий код уведомления...
+    val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+        .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+        .setContentTitle(title)
+        .setContentText(message)
+        .setPriority(NotificationCompat.PRIORITY_HIGH)
+        .setAutoCancel(true)
 
-        with(NotificationManagerCompat.from(context)) {
-            notify(System.currentTimeMillis().toInt(), builder.build())
-        }
+    with(NotificationManagerCompat.from(context)) {
+        notify(System.currentTimeMillis().toInt(), builder.build())
     }
+    
+    // 🔥 ДОБАВЬТЕ ЭТО:
+    GlobalScope.launch(Dispatchers.IO) {
+        HistoryRepository.addEvent(
+            HistoryEvent(
+                timestamp = System.currentTimeMillis(),
+                type = "ALARM",
+                title = title,
+                message = message,
+                imagePath = null
+            )
+        )
+    }
+}
+
 
     // === ВОТ ЭТОТ МЕТОД, КОТОРОГО НЕ ХВАТАЛО ===
     fun sendImageNotification(context: Context, title: String, image: Bitmap) {

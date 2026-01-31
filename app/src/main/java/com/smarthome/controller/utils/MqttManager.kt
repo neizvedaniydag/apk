@@ -9,6 +9,9 @@ import com.smarthome.controller.data.SystemStatus
 import info.mqtt.android.service.MqttAndroidClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.eclipse.paho.client.mqttv3.*
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.locks.ReentrantLock
@@ -16,6 +19,9 @@ import kotlin.concurrent.withLock
 
 object MqttManager {
     private const val TAG = "MqttManager"
+    
+    // 🔥 ДОБАВЛЕНО: Сохранение context для использования в корутинах
+    private var appContext: Context? = null
     
     private const val SERVER_URI = "tcp://srv2.clusterfly.ru:9991"
     private const val USERNAME = "user_4bd2b1f5"
@@ -60,6 +66,11 @@ object MqttManager {
     val latestPreview: StateFlow<Bitmap?> = _latestPreview
     
     fun startAutoConnect(context: Context) {
+        // 🔥 ДОБАВЛЕНО: Сохраняем context
+        if (appContext == null) {
+            appContext = context.applicationContext
+        }
+        
         if (_connectionState.value == ConnectionState.CONNECTED || 
             _connectionState.value == ConnectionState.CONNECTING) {
             Log.d(TAG, "Already connected/connecting")
@@ -70,6 +81,9 @@ object MqttManager {
     }
     
     private fun initialize(context: Context) {
+        // 🔥 ДОБАВЛЕНО: Обновляем context
+        appContext = context.applicationContext
+        
         if (mqttClient != null) {
             Log.d(TAG, "Already initialized")
             return
@@ -131,7 +145,7 @@ object MqttManager {
         try {
             mqttClient?.subscribe(
                 arrayOf(TOPIC_STATUS, TOPIC_STREAM, TOPIC_SNAPSHOT),
-                intArrayOf(1, 0, 1)  // 🔥 QoS 1 для STATUS
+                intArrayOf(1, 0, 1)
             )
             Log.d(TAG, "📡 Subscribed to all topics")
         } catch (e: Exception) {
@@ -143,62 +157,78 @@ object MqttManager {
         when (topic) {
             TOPIC_STREAM -> handleStreamChunk(payload)
             TOPIC_SNAPSHOT -> handleSnapshot(payload)
-            TOPIC_STATUS -> handleStatus(payload)  // 🔥 ИСПРАВЛЕНО
+            TOPIC_STATUS -> handleStatus(payload)
             else -> Log.w(TAG, "⚠️ Unknown topic: $topic")
         }
     }
     
-    /**
-     * 🔥 НОВАЯ ФУНКЦИЯ: Парсинг и обновление SystemState
-     */
-    private fun handleStatus(payload: ByteArray) {
-        try {
-            val json = String(payload, Charsets.UTF_8)
-            Log.d(TAG, "📊 Status JSON: $json")
-            
-            // Парсинг JSON
-            val systemLocked = json.contains("\"systemLocked\":true") || 
-                              json.contains("\"systemLocked\": true")
-            
-            val alarmEnabled = json.contains("\"alarmEnabled\":true") || 
-                              json.contains("\"alarmEnabled\": true")
-            
-            val pirStatus = when {
-                json.contains("\"pirStatus\":\"ALERT\"") || 
-                json.contains("\"pirStatus\": \"ALERT\"") -> "ALERT"
-                
-                json.contains("\"pirStatus\":\"DETECTED\"") || 
-                json.contains("\"pirStatus\": \"DETECTED\"") -> "DETECTED"
-                
-                json.contains("\"pirStatus\":\"MOTION\"") || 
-                json.contains("\"pirStatus\": \"MOTION\"") -> "MOTION"
-                
-                else -> "NONE"
-            }
-            
-            val soundLevel = Regex("\"soundLevel\"\\s*:\\s*(\\d+)").find(json)
-                ?.groupValues?.get(1)?.toIntOrNull() ?: 0
-            
-            Log.d(TAG, "✅ Parsed: locked=$systemLocked, alarm=$alarmEnabled, pir=$pirStatus, sound=$soundLevel")
-            
-            // 🔥 ГЛАВНОЕ: Обновляем SystemState
-            val newStatus = SystemStatus(
-                systemLocked = systemLocked,
-                alarmEnabled = alarmEnabled,
-                pirStatus = pirStatus,
-                soundLevel = soundLevel,
-                lastUpdate = System.currentTimeMillis(),
-                isAlarm = pirStatus == "ALERT" || pirStatus == "MOTION"
-            )
-            
-            SystemState.updateStatus(newStatus)
-            
-            Log.d(TAG, "🔄 SystemState updated successfully")
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Status parse error", e)
+private fun handleStatus(payload: ByteArray) {
+    try {
+        val json = String(payload, Charsets.UTF_8)
+        Log.d(TAG, "📊 Status JSON: $json")
+        
+        // Проверка времени - игнорируем старые статусы
+        val lastUpdateFromMessage = Regex("\"lastUpdate\"\\s*:\\s*(\\d+)").find(json)
+            ?.groupValues?.get(1)?.toLongOrNull() ?: 0
+        
+        val currentTime = System.currentTimeMillis()
+        val ageSeconds = (currentTime - lastUpdateFromMessage) / 1000
+        
+        if (ageSeconds > 30) {
+            Log.w(TAG, "⚠️ Статус устарел на $ageSeconds сек, игнорируем")
+            return
         }
+        
+        // Парсинг JSON
+        val systemLocked = json.contains("\"systemLocked\":true") || 
+                          json.contains("\"systemLocked\": true")
+        
+        val alarmEnabled = json.contains("\"alarmEnabled\":true") || 
+                          json.contains("\"alarmEnabled\": true")
+        
+        // 🔥 ДОБАВЛЕНО: Парсинг streaming
+        val streaming = json.contains("\"streaming\":true") || 
+                       json.contains("\"streaming\": true")
+        
+        val pirStatus = when {
+            json.contains("\"pirStatus\":\"ALERT\"") || 
+            json.contains("\"pirStatus\": \"ALERT\"") -> "ALERT"
+            
+            json.contains("\"pirStatus\":\"DETECTED\"") || 
+            json.contains("\"pirStatus\": \"DETECTED\"") -> "DETECTED"
+            
+            json.contains("\"pirStatus\":\"MOTION\"") || 
+            json.contains("\"pirStatus\": \"MOTION\"") -> "MOTION"
+            
+            else -> "NONE"
+        }
+        
+        val soundLevel = Regex("\"soundLevel\"\\s*:\\s*(\\d+)").find(json)
+            ?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        
+        Log.d(TAG, "✅ Parsed: locked=$systemLocked, alarm=$alarmEnabled, pir=$pirStatus, sound=$soundLevel, streaming=$streaming")
+        
+        // Обновляем SystemState
+        val newStatus = SystemStatus(
+            systemLocked = systemLocked,
+            alarmEnabled = alarmEnabled,
+            pirStatus = pirStatus,
+            soundLevel = soundLevel,
+            lastUpdate = System.currentTimeMillis(),
+            isAlarm = pirStatus == "ALERT" || pirStatus == "MOTION",
+            streaming = streaming  // 🔥 ДОБАВЛЕНО
+        )
+        
+        SystemState.updateStatus(newStatus)
+        
+        Log.d(TAG, "🔄 SystemState updated successfully")
+        
+    } catch (e: Exception) {
+        Log.e(TAG, "❌ Status parse error", e)
     }
+}
+
+
     
     private fun handleStreamChunk(payload: ByteArray) {
         streamLock.withLock {
@@ -237,9 +267,7 @@ object MqttManager {
                         streamBuffer.write(payload)
                         lastStreamChunk = now
                     }
-                    else -> {
-                        // Игнорируем
-                    }
+                    else -> {}
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Stream error", e)
@@ -247,62 +275,96 @@ object MqttManager {
             }
         }
     }
-private fun handleSnapshot(payload: ByteArray) {
-    previewLock.withLock {
-        try {
-            val now = System.currentTimeMillis()
-            
-            if (isReceivingPreview && (now - lastPreviewChunk) > CHUNK_TIMEOUT) {
-                Log.w(TAG, "⏱️ Preview timeout")
-                resetPreviewBuffer()
-            }
-            
-            val marker = try {
-                if (payload.size <= 10) payload.toString(Charsets.UTF_8) else null
-            } catch (e: Exception) { 
-                null 
-            }
-            
-            when {
-                marker == "START" -> {
+    
+    private fun handleSnapshot(payload: ByteArray) {
+        previewLock.withLock {
+            try {
+                val now = System.currentTimeMillis()
+                
+                if (isReceivingPreview && (now - lastPreviewChunk) > CHUNK_TIMEOUT) {
+                    Log.w(TAG, "⏱️ Preview timeout")
                     resetPreviewBuffer()
-                    isReceivingPreview = true
-                    lastPreviewChunk = now
-                    Log.d(TAG, "📥 START preview")
                 }
-                marker == "END" -> {
-                    if (isReceivingPreview) {
-                        val frameData = previewBuffer.toByteArray()
-                        Log.d(TAG, "✅ END preview: ${frameData.size} bytes")
-                        processFrame(frameData, isPreview = true)
+                
+                val marker = try {
+                    if (payload.size <= 10) payload.toString(Charsets.UTF_8) else null
+                } catch (e: Exception) { 
+                    null 
+                }
+                
+                when {
+                    marker == "START" -> {
                         resetPreviewBuffer()
-                    } else {
-                        Log.d(TAG, "📸 Direct snapshot: ${payload.size} bytes")
-                        processFrame(payload, isPreview = true)
+                        isReceivingPreview = true
+                        lastPreviewChunk = now
+                        Log.d(TAG, "📥 START preview")
                     }
-                }
-                isReceivingPreview -> {
-                    previewBuffer.write(payload)
-                    lastPreviewChunk = now
-                }
-                else -> {
-                    // 🔥 ИСПРАВЛЕНО: Добавлен else
-                    if (payload.size > 1000) {
-                        Log.d(TAG, "📸 Full preview: ${payload.size} bytes")
-                        processFrame(payload, isPreview = true)
-                    } else {
-                        // Маленькие пакеты игнорируем
-                        Log.d(TAG, "⚠️ Small payload ignored: ${payload.size} bytes")
+                    marker == "END" -> {
+                        if (isReceivingPreview) {
+                            val frameData = previewBuffer.toByteArray()
+                            Log.d(TAG, "✅ END preview: ${frameData.size} bytes")
+                            processFrame(frameData, isPreview = true)
+                            
+                            // 🔥 ДОБАВЛЕНО: Сохранение в историю
+                            saveSnapshotToHistory(frameData)
+                            
+                            resetPreviewBuffer()
+                        } else {
+                            Log.d(TAG, "📸 Direct snapshot: ${payload.size} bytes")
+                            processFrame(payload, isPreview = true)
+                        }
                     }
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Snapshot error", e)
-            resetPreviewBuffer()
-        }
+                    isReceivingPreview -> {
+                        previewBuffer.write(payload)
+                        lastPreviewChunk = now
+                    }
+else -> {
+    if (payload.size > 1000) {
+        Log.d(TAG, "📸 Full preview: ${payload.size} bytes")
+        processFrame(payload, isPreview = true)
+    } else {
+        Log.d(TAG, "⚠️ Small payload ignored: ${payload.size} bytes")
     }
 }
 
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Snapshot error", e)
+                resetPreviewBuffer()
+            }
+        }
+    }
+    
+    // 🔥 ДОБАВЛЕНО: Функция сохранения в историю
+    private fun saveSnapshotToHistory(imageData: ByteArray) {
+        GlobalScope.launch(Dispatchers.IO) {
+            try {
+                val context = appContext
+                if (context == null) {
+                    Log.e(TAG, "❌ Context недоступен")
+                    return@launch
+                }
+                
+                val filename = "alarm_${System.currentTimeMillis()}.jpg"
+                val file = java.io.File(context.filesDir, filename)
+                file.writeBytes(imageData)
+                
+                com.smarthome.controller.data.HistoryRepository.addEvent(
+                    com.smarthome.controller.data.HistoryEvent(
+                        timestamp = System.currentTimeMillis(),
+                        type = "ALARM",
+                        title = "🚨 Тревога",
+                        message = "Обнаружено движение, получен снимок с камеры",
+                        imagePath = file.absolutePath
+                    )
+                )
+                
+                Log.d(TAG, "✅ Событие сохранено в историю: ${file.absolutePath}")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Ошибка сохранения в историю", e)
+            }
+        }
+    }
     
     private fun processFrame(frameData: ByteArray, isPreview: Boolean) {
         try {

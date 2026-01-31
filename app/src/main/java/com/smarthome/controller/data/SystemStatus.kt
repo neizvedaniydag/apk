@@ -6,5 +6,6 @@ data class SystemStatus(
     val pirStatus: String = "CLEAR",
     val systemLocked: Boolean = false,
     val isAlarm: Boolean = false,
-    val lastUpdate: Long = 0
+    val lastUpdate: Long = 0,
+    val streaming: Boolean = false
 )

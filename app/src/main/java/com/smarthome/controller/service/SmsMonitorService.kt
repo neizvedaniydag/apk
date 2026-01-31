@@ -13,6 +13,12 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.smarthome.controller.MainActivity
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import com.smarthome.controller.data.HistoryEvent
+import com.smarthome.controller.data.HistoryRepository
+
 
 class SmsMonitorService : Service() {
     
@@ -90,6 +96,17 @@ class SmsMonitorService : Service() {
             
             // Показываем уведомление (перезаписываем старое с тем же ID 2, чтобы не копились)
             notificationManager.notify(ALARM_NOTIFICATION_ID, notification)
+            GlobalScope.launch(Dispatchers.IO) {
+        HistoryRepository.addEvent(
+            HistoryEvent(
+                timestamp = System.currentTimeMillis(),
+                type = "ALARM",
+                title = "🚨 SMS Тревога",
+                message = cleanMessage,
+                imagePath = null
+            )
+        )
+        }
         }
     }
     
