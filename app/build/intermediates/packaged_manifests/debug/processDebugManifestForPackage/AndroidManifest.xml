@@ -8,6 +8,7 @@
         android:minSdkVersion="24"
         android:targetSdkVersion="34" />
 
+    <!-- Разрешения -->
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
@@ -17,6 +18,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <permission
         android:name="com.smarthome.controller.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
@@ -31,10 +33,20 @@
         android:extractNativeLibs="false"
         android:icon="@android:drawable/ic_dialog_info"
         android:label="SmartHome"
-        android:supportsRtl="true" >
+        android:supportsRtl="true"
+        android:theme="@style/Theme.SmartHome" >
+
+        <!-- 🔥 ДОБАВЛЕН MQTT СЕРВИС PAHO -->
+        <service
+            android:name="org.eclipse.paho.android.service.MqttService"
+            android:exported="false" />
+
+        <!-- Main Activity -->
         <activity
             android:name="com.smarthome.controller.MainActivity"
-            android:exported="true" >
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -42,6 +54,7 @@
             </intent-filter>
         </activity>
 
+        <!-- SMS Receiver -->
         <receiver
             android:name="com.smarthome.controller.service.SmsReceiver"
             android:exported="true" >
@@ -50,13 +63,16 @@
             </intent-filter>
         </receiver>
 
+        <!-- SMS Monitor Service -->
         <service
             android:name="com.smarthome.controller.service.SmsMonitorService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <service
+            android:name="info.mqtt.android.service.MqttService"
+            android:foregroundServiceType="dataSync" />
 
-        <!-- НЕТ MQTT SERVICE! HiveMQ не требует Service! -->
         <activity
             android:name="androidx.activity.ComponentActivity"
             android:exported="true" />
@@ -78,6 +94,11 @@
                 android:name="androidx.profileinstaller.ProfileInstallerInitializer"
                 android:value="androidx.startup" />
         </provider>
+
+        <service
+            android:name="androidx.room.MultiInstanceInvalidationService"
+            android:directBootAware="true"
+            android:exported="false" />
 
         <receiver
             android:name="androidx.profileinstaller.ProfileInstallReceiver"

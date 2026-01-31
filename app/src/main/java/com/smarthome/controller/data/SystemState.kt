@@ -3,127 +3,113 @@ package com.smarthome.controller.data
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
-import com.smarthome.controller.utils.NotificationHelper
-import org.json.JSONObject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 object SystemState {
+    private const val PREFS_NAME = "alarm_settings"
+    private const val KEY_PHONE = "phone_number"
+    private const val KEY_ALARM_ENABLED = "alarm_enabled"
+    private const val KEY_CONNECTION_MODE = "connection_mode"
+    private const val KEY_AUTO_UPDATE = "auto_update_enabled"
+    private const val KEY_MQTT_SERVER = "mqtt_server"
+    private const val KEY_MQTT_PORT = "mqtt_port"
+    private const val KEY_MQTT_USER = "mqtt_user"
+    private const val KEY_MQTT_PASS = "mqtt_pass"
+    private const val KEY_MQTT_CLIENT_ID = "mqtt_client_id"
+    
     private lateinit var prefs: SharedPreferences
-    private lateinit var appContext: Context
     
-    var phoneNumber: String = "+79964228371"
-        set(value) {
-            field = value
-            prefs.edit().putString("phone", value).apply()
-        }
+    private val _currentStatusFlow = MutableStateFlow(SystemStatus())
+    val currentStatusFlow: StateFlow<SystemStatus> = _currentStatusFlow.asStateFlow()
     
-    var autoUpdateEnabled: Boolean = true
-        set(value) {
-            field = value
-            prefs.edit().putBoolean("autoUpdate", value).apply()
-        }
+    val currentStatus: SystemStatus
+        get() = _currentStatusFlow.value
+    
+    var phoneNumber: String = ""
+        private set
     
     var connectionMode: ConnectionMode = ConnectionMode.HYBRID
-        set(value) {
-            field = value
-            prefs.edit().putString("connectionMode", value.name).apply()
-        }
+        private set
     
     var mqttSettings: MqttSettings = MqttSettings()
-        set(value) {
-            field = value
-            prefs.edit()
-                .putString("mqttServer", value.server)
-                .putInt("mqttPort", value.port)
-                .putString("mqttUsername", value.username)
-                .putString("mqttPassword", value.password)
-                .apply()
-        }
+        private set
     
-    var currentStatus: SystemStatus = SystemStatus()
-    
-    var onStatusUpdate: ((SystemStatus) -> Unit)? = null
-    
+    var autoUpdateEnabled: Boolean = true
+        private set
+
     fun init(context: Context) {
-        appContext = context.applicationContext
-        prefs = context.getSharedPreferences("smart_home", Context.MODE_PRIVATE)
-        
-        phoneNumber = prefs.getString("phone", "+79964228371") ?: "+79964228371"
-        autoUpdateEnabled = prefs.getBoolean("autoUpdate", true)
-        
+        prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        phoneNumber = prefs.getString(KEY_PHONE, "+79387820181") ?: "+79387820181"
+        autoUpdateEnabled = prefs.getBoolean(KEY_AUTO_UPDATE, true)
+        val modeStr = prefs.getString(KEY_CONNECTION_MODE, ConnectionMode.HYBRID.name) ?: ConnectionMode.HYBRID.name
         connectionMode = try {
-            ConnectionMode.valueOf(prefs.getString("connectionMode", ConnectionMode.HYBRID.name) ?: ConnectionMode.HYBRID.name)
+            ConnectionMode.valueOf(modeStr)
         } catch (e: Exception) {
             ConnectionMode.HYBRID
         }
-        
         mqttSettings = MqttSettings(
-            server = prefs.getString("mqttServer", "srv2.clusterfly.ru") ?: "srv2.clusterfly.ru",
-            port = prefs.getInt("mqttPort", 9991),
-            username = prefs.getString("mqttUsername", "user_4bd2b1f5") ?: "user_4bd2b1f5",
-            password = prefs.getString("mqttPassword", "FnoQuMvkcV1ej") ?: "FnoQuMvkcV1ej"
+            server = prefs.getString(KEY_MQTT_SERVER, "srv2.clusterfly.ru") ?: "srv2.clusterfly.ru",
+            port = prefs.getInt(KEY_MQTT_PORT, 9991),
+            username = prefs.getString(KEY_MQTT_USER, "user_4bd2b1f5") ?: "user_4bd2b1f5",
+            password = prefs.getString(KEY_MQTT_PASS, "FnoQuMvkcV1ej") ?: "FnoQuMvkcV1ej",
+            clientId = prefs.getString(KEY_MQTT_CLIENT_ID, "user_4bd2b1f5_android") ?: "user_4bd2b1f5_android"
         )
-        
-        NotificationHelper.createNotificationChannel(context)
+    }
+
+    fun savePhoneNumber(phone: String) {
+        phoneNumber = phone
+        prefs.edit().putString(KEY_PHONE, phone).apply()
+    }
+
+    fun saveConnectionMode(mode: ConnectionMode) {
+        connectionMode = mode
+        prefs.edit().putString(KEY_CONNECTION_MODE, mode.name).apply()
     }
     
+    fun saveMqttSettings(settings: MqttSettings) {
+        mqttSettings = settings
+        prefs.edit().apply {
+            putString(KEY_MQTT_SERVER, settings.server)
+            putInt(KEY_MQTT_PORT, settings.port)
+            putString(KEY_MQTT_USER, settings.username)
+            putString(KEY_MQTT_PASS, settings.password)
+            putString(KEY_MQTT_CLIENT_ID, settings.clientId)
+            apply()
+        }
+    }
+    
+    fun saveGeneralSettings(phone: String, autoUpdate: Boolean) {
+        phoneNumber = phone
+        autoUpdateEnabled = autoUpdate
+        prefs.edit().apply {
+            putString(KEY_PHONE, phone)
+            putBoolean(KEY_AUTO_UPDATE, autoUpdate)
+            apply()
+        }
+    }
+    
+    fun saveSettings() {
+        prefs.edit().apply {
+            putString(KEY_PHONE, phoneNumber)
+            putBoolean(KEY_AUTO_UPDATE, autoUpdateEnabled)
+            putString(KEY_CONNECTION_MODE, connectionMode.name)
+            putString(KEY_MQTT_SERVER, mqttSettings.server)
+            putInt(KEY_MQTT_PORT, mqttSettings.port)
+            putString(KEY_MQTT_USER, mqttSettings.username)
+            putString(KEY_MQTT_PASS, mqttSettings.password)
+            putString(KEY_MQTT_CLIENT_ID, mqttSettings.clientId)
+            apply()
+        }
+    }
+
     fun updateStatus(status: SystemStatus) {
-        currentStatus = status
-        onStatusUpdate?.invoke(status)
-        
-        Log.d("SystemState", "✅ Status updated: armed=${status.alarmEnabled}, locked=${status.systemLocked}, pir=${status.pirStatus}")
+        _currentStatusFlow.value = status
     }
-    
-    fun parseStatusFromJson(json: String) {
-        try {
-            Log.d("SystemState", "📥 Received JSON: $json")
-            
-            val obj = JSONObject(json)
-            
-            val newStatus = SystemStatus(
-                alarmEnabled = obj.optBoolean("armed", false),
-                soundLevel = obj.optInt("threshold", currentStatus.soundLevel),
-                pirStatus = if (obj.optBoolean("pir", false)) "MOTION" else "CLEAR",
-                systemLocked = obj.optBoolean("locked", false),
-                isAlarm = false,
-                lastUpdate = System.currentTimeMillis()
-            )
-            
-            Log.d("SystemState", "📊 Parsed status: armed=${newStatus.alarmEnabled}, locked=${newStatus.systemLocked}")
-            
-            updateStatus(newStatus)
-            
-        } catch (e: Exception) {
-            Log.e("SystemState", "❌ Error parsing JSON: ${e.message}", e)
-        }
-    }
-    
-    fun handleAlarmEvent(json: String) {
-        try {
-            Log.d("SystemState", "🚨 Alarm event received: $json")
-            
-            val obj = JSONObject(json)
-            val type = obj.optString("type", "")
-            
-            if (type == "alarm" && ::appContext.isInitialized) {
-                val alarmStatus = currentStatus.copy(isAlarm = true)
-                updateStatus(alarmStatus)
-                
-                NotificationHelper.sendAlarmNotification(
-                    appContext,
-                    "🚨 Сработала сигнализация! Движение+Звук обнаружены."
-                )
-                Log.d("SystemState", "🚨 Alarm event handled!")
-            }
-        } catch (e: Exception) {
-            Log.e("SystemState", "❌ Error parsing alarm event: ${e.message}", e)
-        }
-    }
-    
+
     fun clearAlarm() {
-        if (currentStatus.isAlarm) {
-            val clearedStatus = currentStatus.copy(isAlarm = false)
-            updateStatus(clearedStatus)
-            Log.d("SystemState", "✅ Alarm cleared")
-        }
+        val current = _currentStatusFlow.value
+        _currentStatusFlow.value = current.copy(isAlarm = false)
     }
 }

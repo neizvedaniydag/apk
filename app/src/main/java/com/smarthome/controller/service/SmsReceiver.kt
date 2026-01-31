@@ -22,8 +22,8 @@ class SmsReceiver : BroadcastReceiver() {
                 Telephony.Sms.Intents.getMessagesFromIntent(intent)
             } else {
                 val pdus = intent.extras?.get("pdus") as? Array<*>
-                pdus?.mapNotNull { pdu ->
-                    SmsMessage.createFromPdu(pdu as ByteArray)
+                pdus?.mapNotNull { pduObj -> // Исправлено имя переменной
+                    SmsMessage.createFromPdu(pduObj as ByteArray)
                 }?.toTypedArray()
             }
             
@@ -34,8 +34,16 @@ class SmsReceiver : BroadcastReceiver() {
                 Log.d(TAG, "📩 SMS от: $sender")
                 Log.d(TAG, "📩 Текст: $body")
                 
-                // ✅ ПРОВЕРЯЕМ ВСЕ ВАРИАНТЫ ОТВЕТОВ ОТ ESP32
-                when {
+                // 1. Проверяем НОВЫЙ формат (Alarm:ON, Motion:YES, Sound:26.3)
+                // С переносами строк \n
+                if (body.contains("Alarm:", ignoreCase = true) || 
+                    body.contains("Motion:", ignoreCase = true)) {
+                    Log.d(TAG, "📊 Парсинг НОВОГО формата (YES/NO)")
+                    parseRealStatus(body, context)
+                }
+                
+                // 2. Проверяем СТАРЫЙ формат и команды
+                else when {
                     // Подтверждения команд
                     body.contains("OK: Alarm ON", ignoreCase = true) ||
                     body.contains("Alarm ON", ignoreCase = true) -> {
@@ -58,6 +66,8 @@ class SmsReceiver : BroadcastReceiver() {
                                 lastUpdate = System.currentTimeMillis()
                             )
                         )
+                        // Снимаем уведомление тревоги
+                        context?.let { SmsMonitorService.clearAlarmNotification(it) }
                     }
                     
                     body.contains("OK: Locked", ignoreCase = true) ||
@@ -85,23 +95,31 @@ class SmsReceiver : BroadcastReceiver() {
                     // Тревога
                     body.contains("ALARM!", ignoreCase = true) ||
                     body.contains("ТРЕВОГА", ignoreCase = true) -> {
-                        Log.d(TAG, "🚨 ТРЕВОГА!")
+                        Log.d(TAG, "🚨 ТРЕВОГА! ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ")
+                        
+                        // 1. Обновляем статус в приложении
                         SystemState.updateStatus(
                             SystemState.currentStatus.copy(
                                 isAlarm = true,
                                 lastUpdate = System.currentTimeMillis()
                             )
                         )
+                        
+                        // 2. ПОКАЗЫВАЕМ ПУШ-УВЕДОМЛЕНИЕ
+                        context?.let { ctx ->
+                            SmsMonitorService.showAlarmNotification(ctx, body)
+                        }
                     }
                     
-                    // Полный статус (формат: Armed:1,Locked:0,PIR:0,Sound:45)
+                    // Полный статус СТАРЫЙ (формат: Armed:1,Locked:0,PIR:0,Sound:45)
                     body.contains("Armed:", ignoreCase = true) -> {
-                        Log.d(TAG, "📊 Парсинг статуса из SMS")
-                        parseStatusFromSms(body)
+                        Log.d(TAG, "📊 Парсинг СТАРОГО статуса из SMS")
+                        parseStatusFromSms(body, context)
                     }
                     
                     else -> {
-                        Log.d(TAG, "ℹ️ Неизвестный формат SMS")
+                        // Если не попали ни в одну ветку выше, но сообщение пришло
+                        Log.d(TAG, "ℹ️ SMS обработано (возможно, новый формат)")
                     }
                 }
             }
@@ -111,9 +129,69 @@ class SmsReceiver : BroadcastReceiver() {
         }
     }
     
-    private fun parseStatusFromSms(body: String) {
+    // Парсер для формата:
+    // Alarm:ON
+    // Lock:NO
+    // Motion:YES
+    // Sound:26.3
+    private fun parseRealStatus(body: String, context: Context?) {
         try {
-            // Формат: Armed:1,Locked:0,PIR:0,Sound:45
+            // Разбиваем по переносам строк (\n) или \r
+            val lines = body.split("\n", "\r")
+            
+            var armed = SystemState.currentStatus.alarmEnabled
+            var locked = SystemState.currentStatus.systemLocked
+            var pirStatus = SystemState.currentStatus.pirStatus
+            var soundLevel = SystemState.currentStatus.soundLevel
+            
+            lines.forEach { line ->
+                // Разделяем по двоеточию
+                val parts = line.split(":")
+                if (parts.size >= 2) {
+                    val key = parts[0].trim().lowercase()
+                    val value = parts[1].trim().uppercase() // YES, NO, ON, OFF
+                    
+                    when (key) {
+                        "alarm" -> armed = (value == "ON" || value == "YES" || value == "1")
+                        "lock" -> locked = (value == "ON" || value == "YES" || value == "1")
+                        "motion" -> pirStatus = if (value == "YES" || value == "ON" || value == "MOTION") "MOTION" else "CLEAR"
+                        "sound" -> {
+                            // "26.3" -> 26
+                            // Удаляем лишнее, парсим Double -> Int
+                            val cleanVal = parts[1].trim()
+                            val doubleVal = cleanVal.toDoubleOrNull()
+                            if (doubleVal != null) {
+                                soundLevel = doubleVal.toInt()
+                            }
+                        }
+                    }
+                }
+            }
+            
+            SystemState.updateStatus(
+                SystemState.currentStatus.copy(
+                    alarmEnabled = armed,
+                    systemLocked = locked,
+                    pirStatus = pirStatus,
+                    soundLevel = soundLevel,
+                    isAlarm = false, // Сброс тревоги
+                    lastUpdate = System.currentTimeMillis()
+                )
+            )
+            
+            // Убираем уведомление тревоги, так как получили свежий статус
+            context?.let { SmsMonitorService.clearAlarmNotification(it) }
+            
+            Log.d(TAG, "✅ Parsed Real Status: Armed=$armed, Motion=$pirStatus, Sound=$soundLevel")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Parse Real Error: ${e.message}", e)
+        }
+    }
+    
+    // Старый парсер для: Armed:1,Locked:0,PIR:0,Sound:45
+    private fun parseStatusFromSms(body: String, context: Context?) {
+        try {
             val parts = body.split(",")
             var armed = false
             var locked = false
@@ -143,7 +221,7 @@ class SmsReceiver : BroadcastReceiver() {
                 }
             }
             
-            Log.d(TAG, "📊 Статус: armed=$armed, locked=$locked, pir=$pirStatus, sound=$soundLevel")
+            Log.d(TAG, "📊 Статус (Legacy): armed=$armed, locked=$locked, pir=$pirStatus, sound=$soundLevel")
             
             SystemState.updateStatus(
                 SystemState.currentStatus.copy(
@@ -155,6 +233,9 @@ class SmsReceiver : BroadcastReceiver() {
                     lastUpdate = System.currentTimeMillis()
                 )
             )
+            
+            // Тоже снимаем уведомление
+            context?.let { SmsMonitorService.clearAlarmNotification(it) }
             
         } catch (e: Exception) {
             Log.e(TAG, "❌ Ошибка парсинга статуса: ${e.message}", e)

@@ -1,4 +1,4 @@
-#Thu Jan 29 13:58:07 MSK 2026
+#Sat Jan 31 04:44:14 MSK 2026
 base.0=/Users/temirlanrasidov/Downloads/project 3/app/build/intermediates/dex/debug/mergeExtDexDebug/classes.dex
 base.1=/Users/temirlanrasidov/Downloads/project 3/app/build/intermediates/dex/debug/mergeProjectDexDebug/0/classes.dex
 base.2=/Users/temirlanrasidov/Downloads/project 3/app/build/intermediates/dex/debug/mergeProjectDexDebug/1/classes.dex
@@ -8,7 +8,6 @@ base.5=/Users/temirlanrasidov/Downloads/project 3/app/build/intermediates/dex/de
 base.6=/Users/temirlanrasidov/Downloads/project 3/app/build/intermediates/dex/debug/mergeProjectDexDebug/5/classes.dex
 base.7=/Users/temirlanrasidov/Downloads/project 3/app/build/intermediates/dex/debug/mergeProjectDexDebug/7/classes.dex
 base.8=/Users/temirlanrasidov/Downloads/project 3/app/build/intermediates/dex/debug/mergeExtDexDebug/classes2.dex
-base.9=/Users/temirlanrasidov/Downloads/project 3/app/build/intermediates/dex/debug/mergeExtDexDebug/classes3.dex
 path.0=classes.dex
 path.1=0/classes.dex
 path.2=1/classes.dex
@@ -18,7 +17,6 @@ path.5=15/classes.dex
 path.6=5/classes.dex
 path.7=7/classes.dex
 path.8=classes2.dex
-path.9=classes3.dex
 renamed.0=classes.dex
 renamed.1=classes2.dex
 renamed.2=classes3.dex
@@ -28,4 +26,3 @@ renamed.5=classes6.dex
 renamed.6=classes7.dex
 renamed.7=classes8.dex
 renamed.8=classes9.dex
-renamed.9=classes10.dex

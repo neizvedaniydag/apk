@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.smarthome.controller.app-mergeDebugResources-44:/values-v16/values-v16.xml",
+            "outputFile": "com.smarthome.controller.app-mergeDebugResources-56:/values-v16/values-v16.xml",
             "map": [
                 {
                     "source": "/Users/temirlanrasidov/.gradle/caches/8.13/transforms/5e110398519f66ab7fd7d708e6cdcbf4/transformed/core-1.12.0/res/values-v16/values-v16.xml",

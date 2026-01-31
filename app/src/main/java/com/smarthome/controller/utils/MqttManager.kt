@@ -1,544 +1,429 @@
 package com.smarthome.controller.utils
 
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.util.Log
-import com.hivemq.client.mqtt.MqttClient
-import com.hivemq.client.mqtt.mqtt3.Mqtt3AsyncClient
 import com.smarthome.controller.data.SystemState
-import com.smarthome.controller.data.ConnectionMode
-import org.json.JSONObject
-import java.util.UUID
-import java.util.concurrent.Executors
-import java.util.concurrent.ScheduledExecutorService
-import java.util.concurrent.TimeUnit
+import com.smarthome.controller.data.SystemStatus
+import info.mqtt.android.service.MqttAndroidClient
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import org.eclipse.paho.client.mqttv3.*
+import java.io.ByteArrayOutputStream
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 object MqttManager {
     private const val TAG = "MqttManager"
-    private var mqttClient: Mqtt3AsyncClient? = null
-    private var isConnecting = false
-    private var reconnectScheduler: ScheduledExecutorService? = null
-    private var isAutoConnectEnabled = false
-    private var appContext: Context? = null
     
-    // ===== ВИДЕО-СТРИМ КОНСТАНТЫ =====
-    private const val VIDEO_STREAM_TOPIC = "user_4bd2b1f5/camera/video/stream"
-    private const val CAMERA_FPS_TOPIC = "user_4bd2b1f5/camera/fps"
-    private const val CAMERA_STATUS_TOPIC = "user_4bd2b1f5/camera/status"
-    private const val CAMERA_CONTROL_TOPIC = "user_4bd2b1f5/camera/control"
+    private const val SERVER_URI = "tcp://srv2.clusterfly.ru:9991"
+    private const val USERNAME = "user_4bd2b1f5"
+    private const val PASSWORD = "FnoQuMvkcV1ej"
     
-    var onConnectionStatusChange: ((Boolean, String) -> Unit)? = null
-    var onVideoFrameReceived: ((ByteArray?, Int?, String?) -> Unit)? = null // НОВЫЙ CALLBACK
+    private const val TOPIC_STATUS = "$USERNAME/status"
+    private const val TOPIC_COMMANDS = "$USERNAME/commands"
+    private const val TOPIC_STREAM = "$USERNAME/camera/stream"
+    private const val TOPIC_SNAPSHOT = "$USERNAME/camera/alarm_snapshot"
     
-    private var isVideoStreamSubscribed = false // Флаг подписки на видео
-    
-    private fun hasInternetConnection(context: Context): Boolean {
-        try {
-            val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-            if (connectivityManager != null) {
-                val network = connectivityManager.activeNetwork
-                if (network == null) {
-                    return false
-                }
-                
-                val capabilities = connectivityManager.getNetworkCapabilities(network)
-                if (capabilities == null) {
-                    return false
-                }
-                
-                return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
-                       capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
-                       capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error checking internet connection", e)
-        }
-        return false
-    }
-    
-    private fun shouldUseMqtt(): Boolean {
-        return when (SystemState.connectionMode) {
-            ConnectionMode.MQTT_ONLY -> true
-            ConnectionMode.SMS_ONLY -> false
-            ConnectionMode.HYBRID -> true
+    enum class ConnectionState {
+        DISCONNECTED, CONNECTING, CONNECTED, ERROR;
+        
+        val isConnected: Boolean get() = this == CONNECTED
+        val statusText: String get() = when(this) {
+            DISCONNECTED -> "Не подключено"
+            CONNECTING -> "Подключение..."
+            CONNECTED -> "Подключено"
+            ERROR -> "Ошибка подключения"
         }
     }
+    
+    private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
+    val connectionState: StateFlow<ConnectionState> = _connectionState
+    
+    private val streamLock = ReentrantLock()
+    private var streamBuffer = ByteArrayOutputStream(200000)
+    private var isReceivingStream = false
+    private var lastStreamChunk = 0L
+    
+    private val previewLock = ReentrantLock()
+    private var previewBuffer = ByteArrayOutputStream(200000)
+    private var isReceivingPreview = false
+    private var lastPreviewChunk = 0L
+    
+    private const val CHUNK_TIMEOUT = 3000L
+    
+    private var mqttClient: MqttAndroidClient? = null
+    private var videoStreamCallback: ((ByteArray?, Int?, String?) -> Unit)? = null
+    
+    private val _latestPreview = MutableStateFlow<Bitmap?>(null)
+    val latestPreview: StateFlow<Bitmap?> = _latestPreview
     
     fun startAutoConnect(context: Context) {
-        if (isAutoConnectEnabled) {
-            Log.d(TAG, "Auto-connect already enabled")
+        if (_connectionState.value == ConnectionState.CONNECTED || 
+            _connectionState.value == ConnectionState.CONNECTING) {
+            Log.d(TAG, "Already connected/connecting")
+            return
+        }
+        _connectionState.value = ConnectionState.CONNECTING
+        initialize(context)
+    }
+    
+    private fun initialize(context: Context) {
+        if (mqttClient != null) {
+            Log.d(TAG, "Already initialized")
             return
         }
         
-        appContext = context.applicationContext
-        isAutoConnectEnabled = true
-        Log.d(TAG, "🔄 Starting auto-connect...")
+        val clientId = "SmartHome_${System.currentTimeMillis()}"
         
-        if (!shouldUseMqtt()) {
-            Log.d(TAG, "📴 SMS Only mode - MQTT disabled")
-            onConnectionStatusChange?.invoke(false, "Режим SMS")
-            return
-        }
-        
-        if (hasInternetConnection(context)) {
-            connectAndSubscribe(context)
-        } else {
-            Log.d(TAG, "⚠️ No internet, skipping initial connect")
-            onConnectionStatusChange?.invoke(false, "Нет интернета")
-        }
-        
-        reconnectScheduler = Executors.newSingleThreadScheduledExecutor()
-        reconnectScheduler?.scheduleWithFixedDelay({
-            try {
-                val ctx = appContext
-                if (ctx == null) {
-                    return@scheduleWithFixedDelay
+        mqttClient = MqttAndroidClient(context, SERVER_URI, clientId).apply {
+            setCallback(object : MqttCallbackExtended {
+                override fun connectComplete(reconnect: Boolean, serverURI: String?) {
+                    Log.d(TAG, "✅ Connected: $serverURI")
+                    _connectionState.value = ConnectionState.CONNECTED
+                    subscribeToTopics()
                 }
                 
-                if (!shouldUseMqtt()) {
-                    if (mqttClient?.state?.isConnected == true) {
-                        Log.d(TAG, "📴 SMS mode enabled, disconnecting MQTT...")
-                        disconnect()
-                    }
-                    return@scheduleWithFixedDelay
+                override fun connectionLost(cause: Throwable?) {
+                    Log.e(TAG, "❌ Connection lost", cause)
+                    _connectionState.value = ConnectionState.DISCONNECTED
+                    resetAllBuffers()
                 }
                 
-                if (!hasInternetConnection(ctx)) {
-                    if (mqttClient?.state?.isConnected == true) {
-                        Log.d(TAG, "📴 Internet lost, disconnecting...")
-                        disconnect()
-                    }
-                    return@scheduleWithFixedDelay
+                override fun messageArrived(topic: String, message: MqttMessage) {
+                    handleMessage(topic, message.payload)
                 }
                 
-                if (mqttClient?.state?.isConnected != true && !isConnecting) {
-                    Log.d(TAG, "🔄 Auto-reconnect triggered")
-                    connectAndSubscribe(ctx)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Auto-reconnect error", e)
-            }
-        }, 30, 30, TimeUnit.SECONDS)
-    }
-    
-    fun stopAutoConnect() {
-        isAutoConnectEnabled = false
-        reconnectScheduler?.shutdown()
-        reconnectScheduler = null
-        disconnect()
-        appContext = null
-        Log.d(TAG, "Auto-connect stopped")
-    }
-    
-    fun onConnectionModeChanged() {
-        val ctx = appContext
-        if (ctx == null) {
-            Log.d(TAG, "⚠️ Context is null, skipping mode change")
-            return
+                override fun deliveryComplete(token: IMqttDeliveryToken?) {}
+            })
         }
         
-        if (!shouldUseMqtt()) {
-            Log.d(TAG, "📴 Switched to SMS mode - disconnecting MQTT")
-            disconnect()
-            onConnectionStatusChange?.invoke(false, "Режим SMS")
-        } else {
-            if (hasInternetConnection(ctx) && mqttClient?.state?.isConnected != true && !isConnecting) {
-                Log.d(TAG, "📡 Switched to MQTT mode - connecting")
-                connectAndSubscribe(ctx)
-            }
+        val options = MqttConnectOptions().apply {
+            userName = USERNAME
+            password = PASSWORD.toCharArray()
+            isAutomaticReconnect = true
+            isCleanSession = false
+            connectionTimeout = 10
+            keepAliveInterval = 20
+            maxInflight = 100
         }
-    }
-    
-    @Synchronized
-    private fun connectAndSubscribe(context: Context) {
+        
         try {
-            if (!shouldUseMqtt()) {
-                Log.d(TAG, "📴 SMS Only mode - aborting MQTT connect")
-                onConnectionStatusChange?.invoke(false, "Режим SMS")
-                return
-            }
-            
-            if (!hasInternetConnection(context)) {
-                Log.d(TAG, "⚠️ No internet, aborting connect")
-                onConnectionStatusChange?.invoke(false, "Нет интернета")
-                return
-            }
-            
-            val settings = SystemState.mqttSettings
-            
-            if (isConnecting) {
-                Log.d(TAG, "Connection in progress, skipping")
-                return
-            }
-            
-            if (mqttClient == null) {
-                Log.d(TAG, "Creating MQTT client")
-                
-                mqttClient = MqttClient.builder()
-                    .identifier("${settings.clientId}_${UUID.randomUUID()}")
-                    .serverHost(settings.server)
-                    .serverPort(settings.port)
-                    .useMqttVersion3()
-                    .buildAsync()
-            }
-            
-            if (mqttClient?.state?.isConnected == true) {
-                Log.d(TAG, "Already connected")
-                return
-            }
-            
-            isConnecting = true
-            onConnectionStatusChange?.invoke(false, "Подключение...")
-            Log.d(TAG, "Connecting to ${settings.server}:${settings.port}")
-            
-            mqttClient?.connectWith()
-                ?.simpleAuth()
-                    ?.username(settings.username)
-                    ?.password(settings.password.toByteArray())
-                    ?.applySimpleAuth()
-                ?.keepAlive(60)
-                ?.send()
-                ?.whenComplete { _, throwable ->
-                    isConnecting = false
-                    if (throwable != null) {
-                        Log.e(TAG, "❌ Connection failed: ${throwable.message}")
-                        onConnectionStatusChange?.invoke(false, "Ошибка подключения")
-                        mqttClient = null
-                    } else {
-                        Log.d(TAG, "✅ Connected!")
-                        onConnectionStatusChange?.invoke(true, "Подключено")
-                        subscribeToTopics()
-                        
-                        // Автоматически подписываемся на видео, если был запрос
-                        if (isVideoStreamSubscribed) {
-                            subscribeToVideoTopics()
-                        }
-                    }
+            mqttClient?.connect(options, null, object : IMqttActionListener {
+                override fun onSuccess(asyncActionToken: IMqttToken?) {
+                    Log.d(TAG, "✅ MQTT connected")
+                    _connectionState.value = ConnectionState.CONNECTED
                 }
-            
-        } catch (e: Exception) {
-            isConnecting = false
-            Log.e(TAG, "❌ connectAndSubscribe error: ${e.message}", e)
-            onConnectionStatusChange?.invoke(false, "Ошибка: ${e.message}")
-            mqttClient = null
-        }
-    }
-    
-    @Synchronized
-    fun sendCommand(context: Context, command: String) {
-        try {
-            Log.d(TAG, "sendCommand: $command")
-            
-            if (!shouldUseMqtt()) {
-                Log.d(TAG, "📴 SMS Only mode - command ignored")
-                onConnectionStatusChange?.invoke(false, "Режим SMS (используйте SMS)")
-                return
-            }
-            
-            if (!hasInternetConnection(context)) {
-                Log.d(TAG, "⚠️ No internet for command")
-                onConnectionStatusChange?.invoke(false, "Нет интернета (используйте SMS)")
-                return
-            }
-            
-            onConnectionStatusChange?.invoke(false, "Отправка...")
-            
-            if (mqttClient?.state?.isConnected == true) {
-                Log.d(TAG, "Already connected, publishing")
-                publishCommand(command)
-                return
-            }
-            
-            if (!isConnecting) {
-                connectAndSubscribe(context)
                 
-                Thread {
-                    var attempts = 0
-                    while (attempts < 10 && mqttClient?.state?.isConnected != true) {
-                        Thread.sleep(500)
-                        attempts++
-                    }
-                    
-                    if (mqttClient?.state?.isConnected == true) {
-                        publishCommand(command)
-                    } else {
-                        Log.e(TAG, "Failed to connect for command")
-                        onConnectionStatusChange?.invoke(false, "Не удалось подключиться")
-                    }
-                }.start()
-            }
-            
+                override fun onFailure(asyncActionToken: IMqttToken?, exception: Throwable?) {
+                    Log.e(TAG, "❌ Connect failed", exception)
+                    _connectionState.value = ConnectionState.ERROR
+                }
+            })
         } catch (e: Exception) {
-            Log.e(TAG, "❌ sendCommand error: ${e.message}", e)
-            onConnectionStatusChange?.invoke(false, "Ошибка: ${e.message}")
+            Log.e(TAG, "❌ Connection error", e)
+            _connectionState.value = ConnectionState.ERROR
         }
     }
     
     private fun subscribeToTopics() {
         try {
-            val topicStatus = SystemState.mqttSettings.topicStatus
-            val topicTrigger = "user_4bd2b1f5/alarm/trigger"
+            mqttClient?.subscribe(
+                arrayOf(TOPIC_STATUS, TOPIC_STREAM, TOPIC_SNAPSHOT),
+                intArrayOf(1, 0, 1)  // 🔥 QoS 1 для STATUS
+            )
+            Log.d(TAG, "📡 Subscribed to all topics")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Subscribe error", e)
+        }
+    }
+    
+    private fun handleMessage(topic: String, payload: ByteArray) {
+        when (topic) {
+            TOPIC_STREAM -> handleStreamChunk(payload)
+            TOPIC_SNAPSHOT -> handleSnapshot(payload)
+            TOPIC_STATUS -> handleStatus(payload)  // 🔥 ИСПРАВЛЕНО
+            else -> Log.w(TAG, "⚠️ Unknown topic: $topic")
+        }
+    }
+    
+    /**
+     * 🔥 НОВАЯ ФУНКЦИЯ: Парсинг и обновление SystemState
+     */
+    private fun handleStatus(payload: ByteArray) {
+        try {
+            val json = String(payload, Charsets.UTF_8)
+            Log.d(TAG, "📊 Status JSON: $json")
             
-            Log.d(TAG, "📡 Subscribing to topics...")
+            // Парсинг JSON
+            val systemLocked = json.contains("\"systemLocked\":true") || 
+                              json.contains("\"systemLocked\": true")
             
-            mqttClient?.subscribeWith()
-                ?.topicFilter(topicStatus)
-                ?.qos(com.hivemq.client.mqtt.datatypes.MqttQos.AT_LEAST_ONCE)
-                ?.callback { message ->
-                    try {
-                        val payload = String(message.payloadAsBytes)
-                        Log.d(TAG, "📥 STATUS: $payload")
-                        SystemState.parseStatusFromJson(payload)
-                        onConnectionStatusChange?.invoke(true, "Статус обновлён")
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error parsing status: ${e.message}", e)
-                    }
-                }
-                ?.send()
-                ?.whenComplete { _, throwable ->
-                    if (throwable != null) {
-                        Log.e(TAG, "❌ Subscribe to status failed: ${throwable.message}")
-                    } else {
-                        Log.d(TAG, "✅ Subscribed to: $topicStatus")
-                    }
-                }
+            val alarmEnabled = json.contains("\"alarmEnabled\":true") || 
+                              json.contains("\"alarmEnabled\": true")
             
-            mqttClient?.subscribeWith()
-                ?.topicFilter(topicTrigger)
-                ?.qos(com.hivemq.client.mqtt.datatypes.MqttQos.AT_LEAST_ONCE)
-                ?.callback { message ->
-                    try {
-                        val payload = String(message.payloadAsBytes)
-                        Log.d(TAG, "🚨 ALARM: $payload")
-                        SystemState.handleAlarmEvent(payload)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error parsing alarm: ${e.message}", e)
-                    }
-                }
-                ?.send()
-                ?.whenComplete { _, throwable ->
-                    if (throwable != null) {
-                        Log.e(TAG, "❌ Subscribe to trigger failed: ${throwable.message}")
-                    } else {
-                        Log.d(TAG, "✅ Subscribed to: $topicTrigger")
-                    }
-                }
+            val pirStatus = when {
+                json.contains("\"pirStatus\":\"ALERT\"") || 
+                json.contains("\"pirStatus\": \"ALERT\"") -> "ALERT"
+                
+                json.contains("\"pirStatus\":\"DETECTED\"") || 
+                json.contains("\"pirStatus\": \"DETECTED\"") -> "DETECTED"
+                
+                json.contains("\"pirStatus\":\"MOTION\"") || 
+                json.contains("\"pirStatus\": \"MOTION\"") -> "MOTION"
+                
+                else -> "NONE"
+            }
+            
+            val soundLevel = Regex("\"soundLevel\"\\s*:\\s*(\\d+)").find(json)
+                ?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            
+            Log.d(TAG, "✅ Parsed: locked=$systemLocked, alarm=$alarmEnabled, pir=$pirStatus, sound=$soundLevel")
+            
+            // 🔥 ГЛАВНОЕ: Обновляем SystemState
+            val newStatus = SystemStatus(
+                systemLocked = systemLocked,
+                alarmEnabled = alarmEnabled,
+                pirStatus = pirStatus,
+                soundLevel = soundLevel,
+                lastUpdate = System.currentTimeMillis(),
+                isAlarm = pirStatus == "ALERT" || pirStatus == "MOTION"
+            )
+            
+            SystemState.updateStatus(newStatus)
+            
+            Log.d(TAG, "🔄 SystemState updated successfully")
             
         } catch (e: Exception) {
-            Log.e(TAG, "❌ subscribeToTopics error: ${e.message}", e)
+            Log.e(TAG, "❌ Status parse error", e)
         }
     }
     
-    private fun publishCommand(command: String) {
-        try {
-            val topic = SystemState.mqttSettings.topicControl
-            
-            mqttClient?.publishWith()
-                ?.topic(topic)
-                ?.payload(command.toByteArray())
-                ?.qos(com.hivemq.client.mqtt.datatypes.MqttQos.AT_LEAST_ONCE)
-                ?.send()
-                ?.whenComplete { _, throwable ->
-                    if (throwable != null) {
-                        Log.e(TAG, "❌ Publish failed: ${throwable.message}")
-                        onConnectionStatusChange?.invoke(false, "Ошибка отправки")
-                    } else {
-                        Log.d(TAG, "📤 Published: $command to $topic")
-                        onConnectionStatusChange?.invoke(true, "Команда отправлена")
-                    }
+    private fun handleStreamChunk(payload: ByteArray) {
+        streamLock.withLock {
+            try {
+                val now = System.currentTimeMillis()
+                
+                if (isReceivingStream && (now - lastStreamChunk) > CHUNK_TIMEOUT) {
+                    Log.w(TAG, "⏱️ Stream timeout")
+                    resetStreamBuffer()
                 }
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ publishCommand error: ${e.message}", e)
-            onConnectionStatusChange?.invoke(false, "Ошибка: ${e.message}")
-        }
-    }
-    
-    // ========== ВИДЕО-СТРИМ ФУНКЦИИ ==========
-    
-    fun subscribeToVideoStream(callback: (frameData: ByteArray?, fps: Int?, status: String?) -> Unit) {
-        onVideoFrameReceived = callback
-        isVideoStreamSubscribed = true
-        
-        if (mqttClient?.state?.isConnected == true) {
-            subscribeToVideoTopics()
-        } else {
-            Log.d(TAG, "📹 Video subscription requested, will subscribe on connect")
-            callback(null, null, "Подключение к камере...")
-        }
-    }
-    
-    private fun subscribeToVideoTopics() {
-        try {
-            Log.d(TAG, "📹 Subscribing to video stream topics...")
-            
-            // Подписка на видео поток (бинарные данные)
-            mqttClient?.subscribeWith()
-                ?.topicFilter(VIDEO_STREAM_TOPIC)
-                ?.qos(com.hivemq.client.mqtt.datatypes.MqttQos.AT_MOST_ONCE) // QoS 0 для скорости
-                ?.callback { message ->
-                    try {
-                        val frameData = message.payloadAsBytes
-                        onVideoFrameReceived?.invoke(frameData, null, null)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error processing video frame: ${e.message}", e)
-                    }
+                
+                val marker = try {
+                    if (payload.size <= 10) payload.toString(Charsets.UTF_8) else null
+                } catch (e: Exception) { 
+                    null 
                 }
-                ?.send()
-                ?.whenComplete { _, throwable ->
-                    if (throwable != null) {
-                        Log.e(TAG, "❌ Subscribe to video stream failed: ${throwable.message}")
-                        onVideoFrameReceived?.invoke(null, null, "Ошибка подписки")
-                    } else {
-                        Log.d(TAG, "✅ Subscribed to video stream")
-                        onVideoFrameReceived?.invoke(null, null, "Подключено к камере")
+                
+                when {
+                    marker == "START" -> {
+                        resetStreamBuffer()
+                        isReceivingStream = true
+                        lastStreamChunk = now
+                        Log.d(TAG, "📥 START stream")
                     }
-                }
-            
-            // Подписка на FPS
-            mqttClient?.subscribeWith()
-                ?.topicFilter(CAMERA_FPS_TOPIC)
-                ?.qos(com.hivemq.client.mqtt.datatypes.MqttQos.AT_MOST_ONCE)
-                ?.callback { message ->
-                    try {
-                        val fpsStr = String(message.payloadAsBytes)
-                        val fps = fpsStr.toIntOrNull()
-                        if (fps != null) {
-                            onVideoFrameReceived?.invoke(null, fps, null)
+                    marker == "END" -> {
+                        if (isReceivingStream) {
+                            val frameData = streamBuffer.toByteArray()
+                            Log.d(TAG, "✅ END stream: ${frameData.size} bytes")
+                            processFrame(frameData, isPreview = false)
+                            resetStreamBuffer()
+                        } else {
+                            Log.w(TAG, "⚠️ END without START")
                         }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error parsing FPS: ${e.message}", e)
+                    }
+                    isReceivingStream -> {
+                        streamBuffer.write(payload)
+                        lastStreamChunk = now
+                    }
+                    else -> {
+                        // Игнорируем
                     }
                 }
-                ?.send()
-                ?.whenComplete { _, throwable ->
-                    if (throwable != null) {
-                        Log.e(TAG, "❌ Subscribe to FPS failed: ${throwable.message}")
-                    } else {
-                        Log.d(TAG, "✅ Subscribed to FPS")
-                    }
-                }
-            
-            // Подписка на статус камеры (JSON)
-            mqttClient?.subscribeWith()
-                ?.topicFilter(CAMERA_STATUS_TOPIC)
-                ?.qos(com.hivemq.client.mqtt.datatypes.MqttQos.AT_LEAST_ONCE)
-                ?.callback { message ->
-                    try {
-                        val statusJson = String(message.payloadAsBytes)
-                        val json = JSONObject(statusJson)
-                        
-                        val streaming = json.optBoolean("streaming", false)
-                        val fps = json.optInt("fps", 0)
-                        val statusText = if (streaming) "Стрим активен ($fps FPS)" else "Стрим остановлен"
-                        
-                        onVideoFrameReceived?.invoke(null, fps, statusText)
-                        Log.d(TAG, "📹 Camera status: $statusText")
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error parsing camera status: ${e.message}", e)
-                    }
-                }
-                ?.send()
-                ?.whenComplete { _, throwable ->
-                    if (throwable != null) {
-                        Log.e(TAG, "❌ Subscribe to camera status failed: ${throwable.message}")
-                    } else {
-                        Log.d(TAG, "✅ Subscribed to camera status")
-                    }
-                }
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ subscribeToVideoTopics error: ${e.message}", e)
-            onVideoFrameReceived?.invoke(null, null, "Ошибка: ${e.message}")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Stream error", e)
+                resetStreamBuffer()
+            }
         }
+    }
+private fun handleSnapshot(payload: ByteArray) {
+    previewLock.withLock {
+        try {
+            val now = System.currentTimeMillis()
+            
+            if (isReceivingPreview && (now - lastPreviewChunk) > CHUNK_TIMEOUT) {
+                Log.w(TAG, "⏱️ Preview timeout")
+                resetPreviewBuffer()
+            }
+            
+            val marker = try {
+                if (payload.size <= 10) payload.toString(Charsets.UTF_8) else null
+            } catch (e: Exception) { 
+                null 
+            }
+            
+            when {
+                marker == "START" -> {
+                    resetPreviewBuffer()
+                    isReceivingPreview = true
+                    lastPreviewChunk = now
+                    Log.d(TAG, "📥 START preview")
+                }
+                marker == "END" -> {
+                    if (isReceivingPreview) {
+                        val frameData = previewBuffer.toByteArray()
+                        Log.d(TAG, "✅ END preview: ${frameData.size} bytes")
+                        processFrame(frameData, isPreview = true)
+                        resetPreviewBuffer()
+                    } else {
+                        Log.d(TAG, "📸 Direct snapshot: ${payload.size} bytes")
+                        processFrame(payload, isPreview = true)
+                    }
+                }
+                isReceivingPreview -> {
+                    previewBuffer.write(payload)
+                    lastPreviewChunk = now
+                }
+                else -> {
+                    // 🔥 ИСПРАВЛЕНО: Добавлен else
+                    if (payload.size > 1000) {
+                        Log.d(TAG, "📸 Full preview: ${payload.size} bytes")
+                        processFrame(payload, isPreview = true)
+                    } else {
+                        // Маленькие пакеты игнорируем
+                        Log.d(TAG, "⚠️ Small payload ignored: ${payload.size} bytes")
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Snapshot error", e)
+            resetPreviewBuffer()
+        }
+    }
+}
+
+    
+    private fun processFrame(frameData: ByteArray, isPreview: Boolean) {
+        try {
+            if (frameData.size < 4 ||
+                frameData[0] != 0xFF.toByte() ||
+                frameData[1] != 0xD8.toByte()) {
+                Log.e(TAG, "❌ Invalid JPEG signature")
+                return
+            }
+            
+            val options = BitmapFactory.Options().apply {
+                inPreferredConfig = Bitmap.Config.RGB_565
+                inScaled = false
+                inTempStorage = ByteArray(16 * 1024)
+            }
+            
+            val bitmap = BitmapFactory.decodeByteArray(frameData, 0, frameData.size, options)
+            
+            if (bitmap != null) {
+                if (isPreview) {
+                    _latestPreview.value?.recycle()
+                    _latestPreview.value = bitmap
+                    Log.d(TAG, "🖼️ Preview: ${bitmap.width}x${bitmap.height}")
+                } else {
+                    videoStreamCallback?.invoke(frameData, null, null)
+                }
+            } else {
+                Log.e(TAG, "❌ Bitmap decode failed")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Decode error", e)
+        }
+    }
+    
+    private fun resetStreamBuffer() {
+        streamBuffer.reset()
+        isReceivingStream = false
+        lastStreamChunk = 0L
+    }
+    
+    private fun resetPreviewBuffer() {
+        previewBuffer.reset()
+        isReceivingPreview = false
+        lastPreviewChunk = 0L
+    }
+    
+    private fun resetAllBuffers() {
+        streamLock.withLock { resetStreamBuffer() }
+        previewLock.withLock { resetPreviewBuffer() }
+    }
+    
+    fun subscribeToVideoStream(callback: (ByteArray?, Int?, String?) -> Unit) {
+        videoStreamCallback = callback
+        Log.d(TAG, "📹 Video stream subscribed")
     }
     
     fun unsubscribeFromVideoStream() {
-        isVideoStreamSubscribed = false
-        
-        try {
-            mqttClient?.unsubscribeWith()
-                ?.topicFilter(VIDEO_STREAM_TOPIC)
-                ?.send()
-            
-            mqttClient?.unsubscribeWith()
-                ?.topicFilter(CAMERA_FPS_TOPIC)
-                ?.send()
-            
-            mqttClient?.unsubscribeWith()
-                ?.topicFilter(CAMERA_STATUS_TOPIC)
-                ?.send()
-            
-            Log.d(TAG, "📹 Unsubscribed from video topics")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error unsubscribing from video: ${e.message}", e)
-        }
-        
-        onVideoFrameReceived = null
+        videoStreamCallback = null
+        Log.d(TAG, "📹 Video stream unsubscribed")
+    }
+    
+    fun sendCommand(context: Context, command: String) {
+        sendCameraCommand(context, command)
     }
     
     fun sendCameraCommand(context: Context, command: String) {
+        if (mqttClient == null) {
+            startAutoConnect(context)
+        }
+        
         try {
-            Log.d(TAG, "📹 Camera command: $command")
-            
-            if (!shouldUseMqtt()) {
-                Log.d(TAG, "📴 SMS Only mode - camera command ignored")
-                onVideoFrameReceived?.invoke(null, null, "MQTT недоступен")
-                return
+            val message = MqttMessage(command.toByteArray()).apply {
+                qos = 0
+                isRetained = false
             }
-            
-            if (!hasInternetConnection(context)) {
-                Log.d(TAG, "⚠️ No internet for camera command")
-                onVideoFrameReceived?.invoke(null, null, "Нет интернета")
-                return
-            }
-            
-            if (mqttClient?.state?.isConnected != true) {
-                Log.d(TAG, "⚠️ Not connected, cannot send camera command")
-                onVideoFrameReceived?.invoke(null, null, "Не подключено к MQTT")
-                return
-            }
-            
-            mqttClient?.publishWith()
-                ?.topic(CAMERA_CONTROL_TOPIC)
-                ?.payload(command.toByteArray())
-                ?.qos(com.hivemq.client.mqtt.datatypes.MqttQos.AT_MOST_ONCE)
-                ?.send()
-                ?.whenComplete { _, throwable ->
-                    if (throwable != null) {
-                        Log.e(TAG, "❌ Camera command failed: ${throwable.message}")
-                        onVideoFrameReceived?.invoke(null, null, "Ошибка команды")
-                    } else {
-                        Log.d(TAG, "📹 Camera command sent: $command")
-                        
-                        val statusMsg = when (command) {
-                            "STREAM_ON" -> "Запуск стрима..."
-                            "STREAM_OFF" -> "Остановка стрима..."
-                            "STATUS" -> "Запрос статуса..."
-                            else -> "Команда отправлена"
-                        }
-                        onVideoFrameReceived?.invoke(null, null, statusMsg)
-                    }
-                }
-            
+            mqttClient?.publish(TOPIC_COMMANDS, message)
+            Log.d(TAG, "📤 Command sent: $command")
         } catch (e: Exception) {
-            Log.e(TAG, "❌ sendCameraCommand error: ${e.message}", e)
-            onVideoFrameReceived?.invoke(null, null, "Ошибка: ${e.message}")
+            Log.e(TAG, "❌ Send command error", e)
         }
     }
     
     fun disconnect() {
         try {
+            resetAllBuffers()
+            videoStreamCallback = null
+            _latestPreview.value?.recycle()
+            _latestPreview.value = null
             mqttClient?.disconnect()
             mqttClient = null
-            isConnecting = false
-            isVideoStreamSubscribed = false
-            onConnectionStatusChange?.invoke(false, "Отключено")
-            onVideoFrameReceived?.invoke(null, null, "Отключено")
-            Log.d(TAG, "Disconnected")
+            _connectionState.value = ConnectionState.DISCONNECTED
+            Log.d(TAG, "🔌 Disconnected")
         } catch (e: Exception) {
-            Log.e(TAG, "Disconnect error: ${e.message}", e)
+            Log.e(TAG, "❌ Disconnect error", e)
+        }
+    }
+    
+    fun stopAutoConnect() {
+        try {
+            _connectionState.value = ConnectionState.DISCONNECTED
+            resetAllBuffers()
+            videoStreamCallback = null
+            _latestPreview.value?.recycle()
+            _latestPreview.value = null
+            
+            mqttClient?.let { client ->
+                try {
+                    if (client.isConnected) {
+                        client.disconnect(0)
+                    }
+                    client.unregisterResources()
+                    client.close()
+                } catch (e: Exception) {
+                    Log.e(TAG, "❌ Disconnect error", e)
+                }
+            }
+            
+            mqttClient = null
+            Log.d(TAG, "🛑 Auto-connect stopped")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Stop error", e)
         }
     }
 }

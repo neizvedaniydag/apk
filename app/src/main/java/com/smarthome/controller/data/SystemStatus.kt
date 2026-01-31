@@ -5,6 +5,6 @@ data class SystemStatus(
     val soundLevel: Int = 0,
     val pirStatus: String = "CLEAR",
     val systemLocked: Boolean = false,
-    val isAlarm: Boolean = false,  
-    val lastUpdate: Long = System.currentTimeMillis()
+    val isAlarm: Boolean = false,
+    val lastUpdate: Long = 0
 )

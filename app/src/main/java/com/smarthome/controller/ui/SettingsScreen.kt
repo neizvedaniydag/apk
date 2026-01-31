@@ -2,488 +2,386 @@ package com.smarthome.controller.ui
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smarthome.controller.data.ConnectionMode
 import com.smarthome.controller.data.MqttSettings
 import com.smarthome.controller.data.SystemState
 import com.smarthome.controller.utils.CrashHandler
+import kotlinx.coroutines.delay
 
-private val ModernBlue = Color(0xFF5B8DEF)
-private val ModernPurple = Color(0xFF8B5CF6)
-private val ModernGreen = Color(0xFF10B981)
-private val ModernOrange = Color(0xFFF59E0B)
-private val ModernRed = Color(0xFFEF4444)
-private val DarkOverlay = Color(0xFF1E293B)
+// --- ЦВЕТОВАЯ ПАЛИТРА (Идентична HomeScreen) ---
+private val PremiumBg = Color(0xFF1A1F2C)
+private val PremiumCard = Color(0xFF242B3D)
+private val PremiumAccent = Color(0xFF3B82F6)
+private val PremiumDanger = Color(0xFFEF4444)
+private val PremiumSuccess = Color(0xFF10B981)
+private val PremiumText = Color(0xFFFFFFFF)
+private val PremiumTextSec = Color(0xFF94A3B8)
 
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     
-    var phoneNumber by remember { mutableStateOf(SystemState.phoneNumber) }
+    // --- ДАННЫЕ ---
+    var phoneNumber by remember { mutableStateOf(SystemState.phoneNumber.ifBlank { "+79964228371" }) }
     var autoUpdate by remember { mutableStateOf(SystemState.autoUpdateEnabled) }
     var connectionMode by remember { mutableStateOf(SystemState.connectionMode) }
-    var showSavedMessage by remember { mutableStateOf(false) }
     
-    // MQTT настройки
-    var mqttServer by remember { mutableStateOf(SystemState.mqttSettings.server) }
-    var mqttPort by remember { mutableStateOf(SystemState.mqttSettings.port.toString()) }
-    var mqttUser by remember { mutableStateOf(SystemState.mqttSettings.username) }
-    var mqttPass by remember { mutableStateOf(SystemState.mqttSettings.password) }
+    // MQTT Данные
+    var mqttServer by remember { mutableStateOf(SystemState.mqttSettings.server.ifBlank { "srv2.clusterfly.ru" }) }
+    var mqttPort by remember { mutableStateOf(if (SystemState.mqttSettings.port == 0) "9991" else SystemState.mqttSettings.port.toString()) }
+    var mqttUser by remember { mutableStateOf(SystemState.mqttSettings.username.ifBlank { "user_4bd2b1f5" }) }
+    var mqttPass by remember { mutableStateOf(SystemState.mqttSettings.password.ifBlank { "FnoQuMvkcV1ej" }) }
+    
+    // Логика отображения
     var showMqttSettings by remember { mutableStateOf(connectionMode != ConnectionMode.SMS_ONLY) }
-    
-    // Проверка краш лога
+    var showPhoneSettings by remember(connectionMode) { mutableStateOf(connectionMode != ConnectionMode.MQTT_ONLY) }
+    var showSavedMessage by remember { mutableStateOf(false) }
     var crashLog by remember { mutableStateOf(CrashHandler.getCrashLog(context)) }
     
+    // Инициализация дефолтных значений
+    LaunchedEffect(Unit) {
+        // 🔥 ИСПРАВЛЕНО: Используем функцию вместо прямого присваивания
+        if (SystemState.phoneNumber.isBlank()) SystemState.savePhoneNumber(phoneNumber)
+        if (SystemState.mqttSettings.server.isBlank()) {
+            val def = MqttSettings(mqttServer, mqttPort.toInt(), mqttUser, mqttPass)
+            // 🔥 ИСПРАВЛЕНО: Убран лишний аргумент, используем функцию
+            SystemState.saveMqttSettings(def)
+        }
+    }
+    
+    // --- ГЛАВНЫЙ КОНТЕЙНЕР ---
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Color(0xFFF0F4FF), Color(0xFFE8F0FE))))
+            .background(PremiumBg)
+            .statusBarsPadding()
+            .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 14.dp, vertical = 32.dp)
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
-        // Header
+        // --- 1. ШАПКА (Стиль как на Главном экране) ---
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Box(
+            IconButton(
+                onClick = onBack,
                 modifier = Modifier
+                    .background(PremiumCard, CircleShape)
+                    .border(1.dp, Color.White.copy(0.1f), CircleShape)
                     .size(42.dp)
-                    .background(Color.White, CircleShape)
-                    .clickable(remember { MutableInteractionSource() }, indication = null, onClick = onBack),
-                contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null, 
-                    modifier = Modifier.size(20.dp), tint = ModernBlue)
+                Icon(Icons.Rounded.ArrowBack, null, tint = PremiumText)
             }
-            Text("Настройки", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = DarkOverlay)
+            
+            Column {
+                Text("Конфигурация", fontSize = 14.sp, color = PremiumTextSec)
+                Text("Настройки", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = PremiumText)
+            }
         }
-        
-        Spacer(Modifier.height(16.dp))
-        
-        // ========== КНОПКА КРАШ ЛОГА - НОВОЕ ==========
+
+        // --- CRASH LOG (Появляется только при ошибке) ---
         if (crashLog != null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(ModernRed.copy(0.1f), RoundedCornerShape(18.dp))
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(PremiumDanger.copy(0.1f))
+                    .border(1.dp, PremiumDanger.copy(0.3f), RoundedCornerShape(20.dp))
+                    .padding(16.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier.size(40.dp)
-                                .background(ModernRed.copy(0.2f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Rounded.Warning, contentDescription = null, 
-                                modifier = Modifier.size(20.dp), tint = ModernRed)
-                        }
-                        Column {
-                            Text("Обнаружен краш", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = ModernRed)
-                            Text("Приложение завершилось с ошибкой", fontSize = 12.sp, color = Color.Gray)
-                        }
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Rounded.BugReport, null, tint = PremiumDanger)
+                        Text("ОБНАРУЖЕН СБОЙ", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = PremiumDanger)
                     }
-                    
                     Button(
                         onClick = {
                             val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                             val clip = android.content.ClipData.newPlainText("crash_log", crashLog)
                             clipboard.setPrimaryClip(clip)
-                            
-                            android.widget.Toast.makeText(context, "✅ Лог скопирован! Отправьте разработчику", android.widget.Toast.LENGTH_LONG).show()
-                            
                             CrashHandler.clearCrashLog(context)
                             crashLog = null
                         },
-                        modifier = Modifier.fillMaxWidth().height(44.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = PremiumDanger),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = ModernRed)
-                    ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), 
-                            verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Rounded.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Text("Скопировать лог ошибки", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
-            }
-            
-            Spacer(Modifier.height(12.dp))
-        }
-        
-        // ========== РЕЖИМ ПОДКЛЮЧЕНИЯ ==========
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.White, RoundedCornerShape(18.dp))
-        ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(40.dp)
-                            .background(Brush.radialGradient(listOf(ModernOrange, ModernPurple)), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Rounded.SettingsInputAntenna, contentDescription = null, 
-                            modifier = Modifier.size(20.dp), tint = Color.White)
-                    }
-                    Column {
-                        Text("Режим подключения", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DarkOverlay)
-                        Text("Сохраняется автоматически", fontSize = 12.sp, color = Color.Gray)
-                    }
-                }
-                
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ConnectionModeItem(
-                        title = "Гибридный (SMS + MQTT)",
-                        subtitle = "Рекомендуемый режим",
-                        selected = connectionMode == ConnectionMode.HYBRID,
-                        onClick = { 
-                            connectionMode = ConnectionMode.HYBRID
-                            showMqttSettings = true
-                            SystemState.connectionMode = ConnectionMode.HYBRID
-                            showSavedMessage = true
-                        }
-                    )
-                    ConnectionModeItem(
-                        title = "Только MQTT",
-                        subtitle = "Быстрее, требует WiFi",
-                        selected = connectionMode == ConnectionMode.MQTT_ONLY,
-                        onClick = { 
-                            connectionMode = ConnectionMode.MQTT_ONLY
-                            showMqttSettings = true
-                            SystemState.connectionMode = ConnectionMode.MQTT_ONLY
-                            showSavedMessage = true
-                        }
-                    )
-                    ConnectionModeItem(
-                        title = "Только SMS",
-                        subtitle = "Работает везде",
-                        selected = connectionMode == ConnectionMode.SMS_ONLY,
-                        onClick = { 
-                            connectionMode = ConnectionMode.SMS_ONLY
-                            showMqttSettings = false
-                            SystemState.connectionMode = ConnectionMode.SMS_ONLY
-                            showSavedMessage = true
-                        }
-                    )
-                }
-            }
-        }
-        
-        Spacer(Modifier.height(12.dp))
-        
-        // ========== MQTT НАСТРОЙКИ ==========
-        AnimatedVisibility(
-            visible = showMqttSettings,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut()
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.White, RoundedCornerShape(18.dp))
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier.size(40.dp)
-                                .background(ModernBlue.copy(0.1f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Rounded.Cloud, contentDescription = null, 
-                                modifier = Modifier.size(20.dp), tint = ModernBlue)
-                        }
-                        Column {
-                            Text("MQTT Сервер", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DarkOverlay)
-                            Text("ClusterFly.ru подключение", fontSize = 12.sp, color = Color.Gray)
-                        }
-                    }
-                    
-                    OutlinedTextField(
-                        value = mqttServer,
-                        onValueChange = { mqttServer = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Сервер") },
-                        placeholder = { Text("srv2.clusterfly.ru") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    
-                    OutlinedTextField(
-                        value = mqttPort,
-                        onValueChange = { mqttPort = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Порт") },
-                        placeholder = { Text("9991") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    
-                    OutlinedTextField(
-                        value = mqttUser,
-                        onValueChange = { mqttUser = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Пользователь") },
-                        placeholder = { Text("user_XXXXX") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    
-                    OutlinedTextField(
-                        value = mqttPass,
-                        onValueChange = { mqttPass = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Пароль") },
-                        placeholder = { Text("***********") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    
-                    Button(
-                        onClick = {
-                            SystemState.mqttSettings = MqttSettings(
-                                server = mqttServer,
-                                port = mqttPort.toIntOrNull() ?: 9991,
-                                username = mqttUser,
-                                password = mqttPass
-                            )
-                            showSavedMessage = true
-                        },
-                        modifier = Modifier.fillMaxWidth().height(44.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier.fillMaxSize()
-                                .background(Brush.horizontalGradient(listOf(ModernBlue, ModernPurple)), 
-                                    RoundedCornerShape(12.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), 
-                                verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Rounded.Save, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Text("Сохранить MQTT", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        Spacer(Modifier.height(12.dp))
-        
-        // Phone Card
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.White, RoundedCornerShape(18.dp))
-        ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(40.dp)
-                            .background(Brush.radialGradient(listOf(ModernBlue, ModernPurple)), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Rounded.PhoneAndroid, contentDescription = null, 
-                            modifier = Modifier.size(20.dp), tint = Color.White)
-                    }
-                    Column {
-                        Text("Номер Arduino", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DarkOverlay)
-                        Text("Номер системы умного дома", fontSize = 12.sp, color = Color.Gray)
-                    }
-                }
-                
-                OutlinedTextField(
-                    value = phoneNumber,
-                    onValueChange = { phoneNumber = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("+79964228371") },
-                    leadingIcon = { Icon(Icons.Rounded.Phone, contentDescription = null, tint = ModernBlue) },
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = ModernBlue,
-                        unfocusedBorderColor = Color.Gray.copy(0.3f),
-                        cursorColor = ModernBlue
-                    )
-                )
-                
-                Button(
-                    onClick = {
-                        SystemState.phoneNumber = phoneNumber
-                        showSavedMessage = true
-                    },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize()
-                            .background(Brush.horizontalGradient(listOf(ModernBlue, ModernPurple)), 
-                                RoundedCornerShape(12.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), 
-                            verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Rounded.Save, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Text("Сохранить номер", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
-                
-                AnimatedVisibility(visible = showSavedMessage, 
-                    enter = expandVertically() + fadeIn(), 
-                    exit = shrinkVertically() + fadeOut()) {
-                    Box(
                         modifier = Modifier.fillMaxWidth()
-                            .background(ModernGreen.copy(0.1f), RoundedCornerShape(10.dp))
-                            .padding(12.dp)
                     ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), 
-                            verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Rounded.CheckCircle, contentDescription = null, 
-                                tint = ModernGreen, modifier = Modifier.size(18.dp))
-                            Text("Настройки сохранены", fontSize = 13.sp, 
-                                fontWeight = FontWeight.Medium, color = ModernGreen)
-                        }
+                        Text("Скопировать лог", fontSize = 14.sp)
                     }
                 }
             }
         }
-        
-        Spacer(Modifier.height(12.dp))
-        
-        // Auto Update
+
+        // --- 2. РЕЖИМ ПОДКЛЮЧЕНИЯ ---
+        SettingsGroup(title = "РЕЖИМ РАБОТЫ") {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ModeCard(
+                    title = "Гибридный (Рекомендуем)",
+                    desc = "Интернет + SMS резерв. Максимальная надежность.",
+                    icon = Icons.Rounded.Security,
+                    selected = connectionMode == ConnectionMode.HYBRID,
+                    onClick = { 
+                        connectionMode = ConnectionMode.HYBRID
+                        showMqttSettings = true; showPhoneSettings = true
+                        // 🔥 ИСПРАВЛЕНО: Сначала сохраняем MQTT, потом режим
+                        SystemState.saveMqttSettings(MqttSettings(mqttServer, mqttPort.toIntOrNull() ?: 9991, mqttUser, mqttPass))
+                        SystemState.saveConnectionMode(ConnectionMode.HYBRID)
+                    }
+                )
+                ModeCard(
+                    title = "Только Интернет (MQTT)",
+                    desc = "Быстрое управление. Экономит деньги на SMS.",
+                    icon = Icons.Rounded.Cloud,
+                    selected = connectionMode == ConnectionMode.MQTT_ONLY,
+                    onClick = { 
+                        connectionMode = ConnectionMode.MQTT_ONLY
+                        showMqttSettings = true; showPhoneSettings = false
+                        // 🔥 ИСПРАВЛЕНО
+                        SystemState.saveMqttSettings(MqttSettings(mqttServer, mqttPort.toIntOrNull() ?: 9991, mqttUser, mqttPass))
+                        SystemState.saveConnectionMode(ConnectionMode.MQTT_ONLY)
+                    }
+                )
+                ModeCard(
+                    title = "Только SMS (Оффлайн)",
+                    desc = "Для мест с плохим интернетом. Полная автономность.",
+                    icon = Icons.Rounded.Sms,
+                    selected = connectionMode == ConnectionMode.SMS_ONLY,
+                    onClick = { 
+                        connectionMode = ConnectionMode.SMS_ONLY
+                        showMqttSettings = false; showPhoneSettings = true
+                        // 🔥 ИСПРАВЛЕНО
+                        SystemState.saveConnectionMode(ConnectionMode.SMS_ONLY)
+                    }
+                )
+            }
+        }
+
+        // --- 3. MQTT НАСТРОЙКИ ---
+        AnimatedVisibility(visible = showMqttSettings) {
+            SettingsGroup(title = "ПАРАМЕТРЫ СЕРВЕРА") {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    PremiumInput(value = mqttServer, onValueChange = { mqttServer = it }, label = "Адрес сервера", icon = Icons.Rounded.Dns)
+                    PremiumInput(value = mqttPort, onValueChange = { mqttPort = it }, label = "Порт", icon = Icons.Rounded.Numbers)
+                    PremiumInput(value = mqttUser, onValueChange = { mqttUser = it }, label = "Пользователь", icon = Icons.Rounded.Person)
+                    PremiumInput(value = mqttPass, onValueChange = { mqttPass = it }, label = "Пароль", isPassword = true, icon = Icons.Rounded.Key)
+                    
+                    SaveButton(text = "Сохранить сервер") {
+                        val newSettings = MqttSettings(mqttServer, mqttPort.toIntOrNull() ?: 9991, mqttUser, mqttPass)
+                        // 🔥 ИСПРАВЛЕНО: Только функция, без прямого присваивания
+                        SystemState.saveMqttSettings(newSettings)
+                        showSavedMessage = true
+                    }
+                }
+            }
+        }
+
+        // --- 4. НАСТРОЙКИ ТЕЛЕФОНА ---
+        AnimatedVisibility(visible = showPhoneSettings) {
+            SettingsGroup(title = "SIM-КАРТА УСТРОЙСТВА") {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(
+                        "Укажите номер SIM-карты, которая стоит в охранной системе.",
+                        fontSize = 13.sp, color = PremiumTextSec, lineHeight = 18.sp
+                    )
+                    PremiumInput(
+                        value = phoneNumber, 
+                        onValueChange = { phoneNumber = it }, 
+                        label = "Номер телефона (+7...)", 
+                        icon = Icons.Rounded.SimCard
+                    )
+                    
+                    SaveButton(text = "Сохранить номер") {
+                        // 🔥 ИСПРАВЛЕНО: Используем функцию
+                        SystemState.saveGeneralSettings(phoneNumber, autoUpdate)
+                        showSavedMessage = true
+                    }
+                }
+            }
+        }
+
+        // --- 5. ЖИВОЕ ОБНОВЛЕНИЕ ---
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color.White, RoundedCornerShape(18.dp))
+                .clip(RoundedCornerShape(20.dp))
+                .background(PremiumCard)
+                .border(1.dp, Color.White.copy(0.05f), RoundedCornerShape(20.dp))
+                .padding(16.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), 
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(40.dp)
-                            .background(ModernBlue.copy(0.1f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Rounded.Sync, contentDescription = null, 
-                            tint = ModernBlue, modifier = Modifier.size(20.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(40.dp).background(PremiumAccent.copy(0.15f), CircleShape), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.Sync, null, tint = PremiumAccent)
                     }
                     Column {
-                        Text("Автообновление", fontSize = 15.sp, 
-                            fontWeight = FontWeight.SemiBold, color = DarkOverlay)
-                        Text("Запрос статуса через 4 сек", fontSize = 11.sp, color = Color.Gray)
+                        Text("Автообновление", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = PremiumText)
+                        Text("Опрос каждые 4 сек", fontSize = 12.sp, color = PremiumTextSec)
                     }
                 }
                 Switch(
                     checked = autoUpdate,
                     onCheckedChange = {
                         autoUpdate = it
-                        SystemState.autoUpdateEnabled = it
+                        // 🔥 ИСПРАВЛЕНО: Используем функцию вместо прямого присваивания
+                        SystemState.saveGeneralSettings(phoneNumber, it)
                     },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Color.White,
-                        checkedTrackColor = ModernGreen,
-                        uncheckedThumbColor = Color.White,
-                        uncheckedTrackColor = Color.Gray.copy(0.3f)
+                        checkedTrackColor = PremiumSuccess,
+                        uncheckedThumbColor = PremiumTextSec,
+                        uncheckedTrackColor = PremiumBg
                     )
                 )
             }
         }
         
-        Spacer(Modifier.height(12.dp))
-        
-        // Info
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(ModernBlue.copy(0.05f), RoundedCornerShape(18.dp))
-        ) {
-            Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Icon(Icons.Rounded.Info, contentDescription = null, tint = ModernBlue, 
-                    modifier = Modifier.size(20.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Подсказка", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, 
-                        color = DarkOverlay)
-                    Text(
-                        "Режим подключения сохраняется автоматически при выборе.\n" +
-                        "MQTT по умолчанию настроен на ClusterFly.ru",
-                        fontSize = 11.sp, color = Color.Gray, lineHeight = 16.sp
-                    )
+        Spacer(Modifier.height(40.dp))
+    }
+
+    // --- ВСПЛЫВАШКА СОХРАНЕНИЯ ---
+    if (showSavedMessage) {
+        LaunchedEffect(Unit) {
+            delay(2000)
+            showSavedMessage = false
+        }
+        Box(modifier = Modifier.fillMaxSize().padding(bottom = 50.dp), contentAlignment = Alignment.BottomCenter) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(PremiumSuccess)
+                    .padding(horizontal = 24.dp, vertical = 12.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Text("Настройки сохранены", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
         }
     }
-    
-    LaunchedEffect(showSavedMessage) {
-        if (showSavedMessage) {
-            kotlinx.coroutines.delay(2000)
-            showSavedMessage = false
+}
+
+// --- КОМПОНЕНТЫ (БЕЗ ИЗМЕНЕНИЙ) ---
+
+@Composable
+fun SettingsGroup(title: String, content: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PremiumTextSec, modifier = Modifier.padding(start = 8.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .background(PremiumCard)
+                .border(1.dp, Color.White.copy(0.05f), RoundedCornerShape(24.dp))
+                .padding(20.dp)
+        ) {
+            content()
         }
     }
 }
 
 @Composable
-fun ConnectionModeItem(
-    title: String,
-    subtitle: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Box(
+fun ModeCard(title: String, desc: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
+    val borderColor = if (selected) PremiumAccent else Color.White.copy(0.05f)
+    val bgColor = if (selected) PremiumAccent.copy(0.1f) else Color.Transparent
+    
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                if (selected) ModernBlue.copy(0.1f) else Color.Gray.copy(0.05f),
-                RoundedCornerShape(12.dp)
-            )
+            .clip(RoundedCornerShape(16.dp))
+            .background(bgColor)
+            .border(1.dp, borderColor, RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
-            .padding(12.dp)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .background(if (selected) PremiumAccent else PremiumBg, CircleShape),
+            contentAlignment = Alignment.Center
         ) {
-            Column {
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, 
-                    color = if (selected) ModernBlue else DarkOverlay)
-                Text(subtitle, fontSize = 11.sp, color = Color.Gray)
-            }
-            RadioButton(
-                selected = selected,
-                onClick = onClick,
-                colors = RadioButtonDefaults.colors(selectedColor = ModernBlue)
-            )
+            Icon(icon, null, tint = if (selected) Color.White else PremiumTextSec)
         }
+        
+        Spacer(Modifier.width(16.dp))
+        
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = PremiumText)
+            Text(desc, fontSize = 12.sp, color = PremiumTextSec, lineHeight = 16.sp)
+        }
+        
+        if (selected) {
+            Spacer(Modifier.width(8.dp))
+            Icon(Icons.Rounded.CheckCircle, null, tint = PremiumAccent)
+        }
+    }
+}
+
+@Composable
+fun PremiumInput(value: String, onValueChange: (String) -> Unit, label: String, icon: ImageVector, isPassword: Boolean = false) {
+    val visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None
+    
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(label, fontSize = 12.sp, color = PremiumTextSec)
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            leadingIcon = { Icon(icon, null, tint = PremiumTextSec) },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = PremiumBg,
+                unfocusedContainerColor = PremiumBg,
+                focusedBorderColor = PremiumAccent,
+                unfocusedBorderColor = Color.White.copy(0.1f),
+                focusedTextColor = PremiumText,
+                unfocusedTextColor = PremiumText,
+                cursorColor = PremiumAccent
+            ),
+            visualTransformation = visualTransformation
+        )
+    }
+}
+
+@Composable
+fun SaveButton(text: String, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().height(50.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = PremiumAccent)
+    ) {
+        Text(text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
     }
 }
