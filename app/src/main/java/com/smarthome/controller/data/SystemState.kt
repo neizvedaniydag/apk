@@ -3,11 +3,18 @@ package com.smarthome.controller.data
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 object SystemState {
+    private const val TAG = "SystemState"
     private const val PREFS_NAME = "alarm_settings"
     private const val KEY_PHONE = "phone_number"
     private const val KEY_ALARM_ENABLED = "alarm_enabled"
@@ -20,6 +27,7 @@ object SystemState {
     private const val KEY_MQTT_CLIENT_ID = "mqtt_client_id"
     
     private lateinit var prefs: SharedPreferences
+    private val scope = CoroutineScope(Dispatchers.Default + Job())
     
     private val _currentStatusFlow = MutableStateFlow(SystemStatus())
     val currentStatusFlow: StateFlow<SystemStatus> = _currentStatusFlow.asStateFlow()
@@ -56,6 +64,28 @@ object SystemState {
             password = prefs.getString(KEY_MQTT_PASS, "FnoQuMvkcV1ej") ?: "FnoQuMvkcV1ej",
             clientId = prefs.getString(KEY_MQTT_CLIENT_ID, "user_4bd2b1f5_android") ?: "user_4bd2b1f5_android"
         )
+        
+        startHealthCheck()
+    }
+    
+    // 🔥 ИСПРАВЛЕНО: 25 секунд timeout
+    private fun startHealthCheck() {
+        scope.launch {
+            while (isActive) {
+                delay(3000) // Проверка каждые 3 секунды
+                
+                val status = _currentStatusFlow.value
+                if (status.lastUpdate > 0) {
+                    val age = System.currentTimeMillis() - status.lastUpdate
+                    
+                    // 🔥 25 секунд без обновления = offline
+                    if (age > 25_000) {
+                        Log.w(TAG, "⚠️ Status timeout: ${age}ms")
+                        _currentStatusFlow.value = status.copy(lastUpdate = 0)
+                    }
+                }
+            }
+        }
     }
 
     fun savePhoneNumber(phone: String) {
@@ -104,8 +134,21 @@ object SystemState {
         }
     }
 
+    // 🔥 ИСПРАВЛЕНО: Фильтр для игнорирования LWT статусов
     fun updateStatus(status: SystemStatus) {
+        val current = _currentStatusFlow.value
+        
+        // 🔥 Игнорировать LWT если текущий статус свежий
+        if (status.lastUpdate == 0L && current.lastUpdate > 0) {
+            val age = System.currentTimeMillis() - current.lastUpdate
+            if (age < 20_000) {
+                Log.d(TAG, "⚠️ Ignoring LWT - current status is fresh (${age}ms old)")
+                return
+            }
+        }
+        
         _currentStatusFlow.value = status
+        Log.d(TAG, "✅ Status updated: online=${status.lastUpdate > 0}, alarm=${status.alarmEnabled}")
     }
 
     fun clearAlarm() {

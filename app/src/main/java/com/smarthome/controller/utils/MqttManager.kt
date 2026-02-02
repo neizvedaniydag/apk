@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import org.eclipse.paho.client.mqttv3.*
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.locks.ReentrantLock
@@ -30,7 +32,11 @@ object MqttManager {
     private const val TOPIC_COMMANDS = "$USERNAME/commands"
     private const val TOPIC_STREAM = "$USERNAME/camera/stream"
     private const val TOPIC_SNAPSHOT = "$USERNAME/camera/alarm_snapshot"
-    private const val TOPIC_DETECTION = "$USERNAME/camera/detection_info"  // 🔥 ДОБАВЛЕНО
+    private const val TOPIC_DETECTION = "$USERNAME/camera/detection_info"
+    
+    private var healthCheckJob: Job? = null
+    private const val HEALTH_CHECK_INTERVAL = 2000L
+    private const val OFFLINE_THRESHOLD = 8000L
     
     enum class ConnectionState {
         DISCONNECTED, CONNECTING, CONNECTED, ERROR;
@@ -65,7 +71,7 @@ object MqttManager {
     private val _latestPreview = MutableStateFlow<Bitmap?>(null)
     val latestPreview: StateFlow<Bitmap?> = _latestPreview
     
-    private var lastDetectionInfo: String = ""  // 🔥 ДОБАВЛЕНО
+    private var lastDetectionInfo: String = ""
     
     fun startAutoConnect(context: Context) {
         if (appContext == null) {
@@ -102,6 +108,7 @@ object MqttManager {
                 override fun connectionLost(cause: Throwable?) {
                     Log.e(TAG, "❌ Connection lost", cause)
                     _connectionState.value = ConnectionState.DISCONNECTED
+                    stopHealthCheck()
                     resetAllBuffers()
                 }
                 
@@ -119,7 +126,7 @@ object MqttManager {
             isAutomaticReconnect = true
             isCleanSession = false
             connectionTimeout = 10
-            keepAliveInterval = 20
+            keepAliveInterval = 10
             maxInflight = 100
         }
         
@@ -143,15 +150,68 @@ object MqttManager {
     
     private fun subscribeToTopics() {
         try {
-            // 🔥 ДОБАВЛЕН TOPIC_DETECTION
             mqttClient?.subscribe(
                 arrayOf(TOPIC_STATUS, TOPIC_STREAM, TOPIC_SNAPSHOT, TOPIC_DETECTION),
                 intArrayOf(1, 0, 1, 1)
             )
             Log.d(TAG, "📡 Subscribed to all topics")
+            startHealthCheck()
         } catch (e: Exception) {
             Log.e(TAG, "❌ Subscribe error", e)
         }
+    }
+    
+    private fun startHealthCheck() {
+        healthCheckJob?.cancel()
+        healthCheckJob = GlobalScope.launch(Dispatchers.IO) {
+            while (true) {
+                try {
+                    delay(HEALTH_CHECK_INTERVAL)
+                    checkDeviceHealth()
+                } catch (e: Exception) {
+                    Log.e(TAG, "❌ Health check error", e)
+                }
+            }
+        }
+        Log.d(TAG, "💓 Health check started")
+    }
+    
+    private fun checkDeviceHealth() {
+        try {
+            val currentStatus = SystemState.currentStatus
+            val lastUpdate = currentStatus.lastUpdate
+            
+            if (lastUpdate == 0L) {
+                return
+            }
+            
+            val currentTime = System.currentTimeMillis()
+            val timeSinceLastUpdate = currentTime - lastUpdate
+            
+            if (timeSinceLastUpdate > OFFLINE_THRESHOLD) {
+                Log.w(TAG, "⚠️ Устройство не отвечает ${timeSinceLastUpdate / 1000L} сек!")
+                
+                val offlineStatus = SystemStatus(
+                    systemLocked = false,
+                    alarmEnabled = false,
+                    pirStatus = "NONE",
+                    soundLevel = 0,
+                    lastUpdate = 0L,
+                    isAlarm = false,
+                    streaming = false
+                )
+                SystemState.updateStatus(offlineStatus)
+                Log.e(TAG, "🔴 Устройство помечено как OFFLINE")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Health check error", e)
+        }
+    }
+    
+    private fun stopHealthCheck() {
+        healthCheckJob?.cancel()
+        healthCheckJob = null
+        Log.d(TAG, "💓 Health check stopped")
     }
     
     private fun handleMessage(topic: String, payload: ByteArray) {
@@ -159,7 +219,7 @@ object MqttManager {
             TOPIC_STREAM -> handleStreamChunk(payload)
             TOPIC_SNAPSHOT -> handleSnapshot(payload)
             TOPIC_STATUS -> handleStatus(payload)
-            TOPIC_DETECTION -> {  // 🔥 ДОБАВЛЕНО
+            TOPIC_DETECTION -> {
                 lastDetectionInfo = String(payload, Charsets.UTF_8)
                 Log.d(TAG, "📊 Detection info: $lastDetectionInfo")
             }
@@ -175,11 +235,18 @@ object MqttManager {
             val lastUpdateFromMessage = Regex("\"lastUpdate\"\\s*:\\s*(\\d+)").find(json)
                 ?.groupValues?.get(1)?.toLongOrNull() ?: 0
             
-            val currentTime = System.currentTimeMillis()
-            val ageSeconds = (currentTime - lastUpdateFromMessage) / 1000
-            
-            if (ageSeconds > 30) {
-                Log.w(TAG, "⚠️ Статус устарел на $ageSeconds сек, игнорируем")
+            if (lastUpdateFromMessage == 0L) {
+                Log.w(TAG, "🔴 OFFLINE статус (LWT): lastUpdate=0")
+                val offlineStatus = SystemStatus(
+                    systemLocked = false,
+                    alarmEnabled = false,
+                    pirStatus = "NONE",
+                    soundLevel = 0,
+                    lastUpdate = 0L,
+                    isAlarm = false,
+                    streaming = false
+                )
+                SystemState.updateStatus(offlineStatus)
                 return
             }
             
@@ -215,7 +282,7 @@ object MqttManager {
                 alarmEnabled = alarmEnabled,
                 pirStatus = pirStatus,
                 soundLevel = soundLevel,
-                lastUpdate = System.currentTimeMillis(),
+                lastUpdate = lastUpdateFromMessage,
                 isAlarm = pirStatus == "ALERT" || pirStatus == "MOTION",
                 streaming = streaming
             )
@@ -238,14 +305,12 @@ object MqttManager {
                     resetStreamBuffer()
                 }
                 
-                // 🔥 ВОТ ТАК БЫЛО В РАБОЧЕЙ ВЕРСИИ!
                 val marker = try {
                     if (payload.size <= 10) payload.toString(Charsets.UTF_8) else null
                 } catch (e: Exception) { 
                     null 
                 }
                 
-                // 🔥 when с else -> {}
                 when {
                     marker == "START" -> {
                         resetStreamBuffer()
@@ -267,7 +332,7 @@ object MqttManager {
                         streamBuffer.write(payload)
                         lastStreamChunk = now
                     }
-                    else -> {}  // 🔥 ПУСТОЙ else!
+                    else -> {}
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Stream error", e)
@@ -276,118 +341,113 @@ object MqttManager {
         }
     }
     
-private fun handleSnapshot(payload: ByteArray) {
-    previewLock.withLock {
-        try {
-            val now = System.currentTimeMillis()
-            
-            if (isReceivingPreview && (now - lastPreviewChunk) > CHUNK_TIMEOUT) {
-                Log.w(TAG, "⏱️ Preview timeout")
-                resetPreviewBuffer()
-            }
-            
-            val marker = try {
-                if (payload.size <= 10) payload.toString(Charsets.UTF_8) else null
-            } catch (e: Exception) { 
-                null 
-            }
-            
-            when {
-                marker == "START" -> {
-                    resetPreviewBuffer()
-                    isReceivingPreview = true
-                    lastPreviewChunk = now
-                    Log.d(TAG, "📥 START preview")
-                }
-                marker == "END" -> {
-                    // 🔥 ВОТ ТУТ ДОЛЖЕН БЫТЬ else!
-                    if (isReceivingPreview) {
-                        val frameData = previewBuffer.toByteArray()
-                        Log.d(TAG, "✅ END preview: ${frameData.size} bytes")
-                        processFrame(frameData, isPreview = true)
-                        saveSnapshotToHistory(frameData)
-                        resetPreviewBuffer()
-                    } else {
-                        Log.d(TAG, "📸 Direct END snapshot: ${payload.size} bytes")
-                        processFrame(payload, isPreview = true)
-                    }
-                }
-                isReceivingPreview -> {
-                    previewBuffer.write(payload)
-                    lastPreviewChunk = now
-                }
-                else -> {
-                    if (payload.size > 1000) {
-                        Log.d(TAG, "📸 Full preview: ${payload.size} bytes")
-                        processFrame(payload, isPreview = true)
-                        saveSnapshotToHistory(payload)
-                    } else {
-                        Log.d(TAG, "⚠️ Small payload ignored: ${payload.size} bytes")
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Snapshot error", e)
-            resetPreviewBuffer()
-        }
-    }
-}
-
-    
-    // 🔥 С DETECTION INFO
-private var lastSavedTimestamp = 0L
-
-private fun saveSnapshotToHistory(imageData: ByteArray) {
-    GlobalScope.launch(Dispatchers.IO) {
-        try {
-            val context = appContext ?: return@launch
-            
-            // 🔥 ЗАЩИТА ОТ ДУБЛИКАТОВ (не чаще 2 сек)
-            val now = System.currentTimeMillis()
-            if (now - lastSavedTimestamp < 2000) {
-                Log.w(TAG, "⚠️ Дубликат snapshot игнорирован")
-                return@launch
-            }
-            lastSavedTimestamp = now
-            
-            val filename = "alarm_${now}.jpg"
-            val file = java.io.File(context.filesDir, filename)
-            file.writeBytes(imageData)
-            
-            var detectionMsg = "Обнаружено движение"
+    private fun handleSnapshot(payload: ByteArray) {
+        previewLock.withLock {
             try {
-                if (lastDetectionInfo.isNotEmpty()) {
-                    val json = org.json.JSONObject(lastDetectionInfo)
-                    val probability = json.getInt("personProbability")
-                    val type = json.getString("detectionType")
-                    
-                    detectionMsg = if (type == "PERSON" && probability > 60) {
-                        "🚨 ВНИМАНИЕ: Человек обнаружен! (Уверенность: $probability%)"
-                    } else {
-                        "📸 Движение обнаружено (Вероятность человека: $probability%)"
+                val now = System.currentTimeMillis()
+                
+                if (isReceivingPreview && (now - lastPreviewChunk) > CHUNK_TIMEOUT) {
+                    Log.w(TAG, "⏱️ Preview timeout")
+                    resetPreviewBuffer()
+                }
+                
+                val marker = try {
+                    if (payload.size <= 10) payload.toString(Charsets.UTF_8) else null
+                } catch (e: Exception) { 
+                    null 
+                }
+                
+                when {
+                    marker == "START" -> {
+                        resetPreviewBuffer()
+                        isReceivingPreview = true
+                        lastPreviewChunk = now
+                        Log.d(TAG, "📥 START preview")
+                    }
+                    marker == "END" -> {
+                        if (isReceivingPreview) {
+                            val frameData = previewBuffer.toByteArray()
+                            Log.d(TAG, "✅ END preview: ${frameData.size} bytes")
+                            processFrame(frameData, isPreview = true)
+                            saveSnapshotToHistory(frameData)
+                            resetPreviewBuffer()
+                        } else {
+                            Log.d(TAG, "📸 Direct END snapshot: ${payload.size} bytes")
+                            processFrame(payload, isPreview = true)
+                        }
+                    }
+                    isReceivingPreview -> {
+                        previewBuffer.write(payload)
+                        lastPreviewChunk = now
+                    }
+                    else -> {
+                        if (payload.size > 1000) {
+                            Log.d(TAG, "📸 Full preview: ${payload.size} bytes")
+                            processFrame(payload, isPreview = true)
+                            saveSnapshotToHistory(payload)
+                        } else {
+                            Log.d(TAG, "⚠️ Small payload ignored: ${payload.size} bytes")
+                        }
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Ошибка парсинга detection", e)
+                Log.e(TAG, "❌ Snapshot error", e)
+                resetPreviewBuffer()
             }
-            
-            com.smarthome.controller.data.HistoryRepository.addEvent(
-                com.smarthome.controller.data.HistoryEvent(
-                    timestamp = now,
-                    type = "ALARM",
-                    title = "🚨 Тревога",
-                    message = detectionMsg,
-                    imagePath = file.absolutePath
-                )
-            )
-            
-            Log.d(TAG, "✅ Событие сохранено: ${file.absolutePath}")
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Ошибка сохранения", e)
         }
     }
-}
-
+    
+    private var lastSavedTimestamp = 0L
+    
+    private fun saveSnapshotToHistory(imageData: ByteArray) {
+        GlobalScope.launch(Dispatchers.IO) {
+            try {
+                val context = appContext ?: return@launch
+                
+                val now = System.currentTimeMillis()
+                if (now - lastSavedTimestamp < 2000) {
+                    Log.w(TAG, "⚠️ Дубликат snapshot игнорирован")
+                    return@launch
+                }
+                lastSavedTimestamp = now
+                
+                val filename = "alarm_${now}.jpg"
+                val file = java.io.File(context.filesDir, filename)
+                file.writeBytes(imageData)
+                
+                var detectionMsg = "Обнаружено движение"
+                try {
+                    if (lastDetectionInfo.isNotEmpty()) {
+                        val json = org.json.JSONObject(lastDetectionInfo)
+                        val probability = json.getInt("personProbability")
+                        val type = json.getString("detectionType")
+                        
+                        detectionMsg = if (type == "PERSON" && probability > 60) {
+                            "🚨 ВНИМАНИЕ: Человек обнаружен! (Уверенность: $probability%)"
+                        } else {
+                            "📸 Движение обнаружено (Вероятность человека: $probability%)"
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "❌ Ошибка парсинга detection", e)
+                }
+                
+                com.smarthome.controller.data.HistoryRepository.addEvent(
+                    com.smarthome.controller.data.HistoryEvent(
+                        timestamp = now,
+                        type = "ALARM",
+                        title = "🚨 Тревога",
+                        message = detectionMsg,
+                        imagePath = file.absolutePath
+                    )
+                )
+                
+                Log.d(TAG, "✅ Событие сохранено: ${file.absolutePath}")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Ошибка сохранения", e)
+            }
+        }
+    }
     
     private fun processFrame(frameData: ByteArray, isPreview: Boolean) {
         try {
@@ -472,6 +532,7 @@ private fun saveSnapshotToHistory(imageData: ByteArray) {
     
     fun disconnect() {
         try {
+            stopHealthCheck()
             resetAllBuffers()
             videoStreamCallback = null
             _latestPreview.value?.recycle()
@@ -487,6 +548,7 @@ private fun saveSnapshotToHistory(imageData: ByteArray) {
     
     fun stopAutoConnect() {
         try {
+            stopHealthCheck()
             _connectionState.value = ConnectionState.DISCONNECTED
             resetAllBuffers()
             videoStreamCallback = null

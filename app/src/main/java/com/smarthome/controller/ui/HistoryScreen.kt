@@ -16,6 +16,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -182,14 +183,15 @@ fun HistoryScreen(onBack: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(PremiumBg)
+            .statusBarsPadding()
+            .navigationBarsPadding()
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // 🔥 HEADER
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 16.dp)
-                    .padding(top = 8.dp),
+                    .padding(horizontal = 20.dp, vertical = 20.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -199,27 +201,27 @@ fun HistoryScreen(onBack: () -> Unit) {
                         modifier = Modifier
                             .background(PremiumCard, CircleShape)
                             .border(1.dp, Color.White.copy(0.1f), CircleShape)
-                            .size(42.dp)
+                            .size(44.dp)
                     ) {
-                        Icon(Icons.Rounded.ArrowBack, null, tint = PremiumText)
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, tint = PremiumText)
                     }
-                    Spacer(Modifier.width(16.dp))
+                    Spacer(Modifier.width(24.dp))
                     Column {
                         Text(
-                            "Журнал событий",
-                            fontSize = 28.sp,
+                            "Журнал",
+                            fontSize = 24.sp,
                             fontWeight = FontWeight.Bold,
                             color = PremiumText
                         )
                         Text(
                             "${events.size} ${getEventCountText(events.size)}",
-                            fontSize = 14.sp,
+                            fontSize = 13.sp,
                             color = PremiumTextSec
                         )
                     }
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     IconButton(
                         onClick = { showFilterMenu = !showFilterMenu },
                         modifier = Modifier
@@ -232,7 +234,7 @@ fun HistoryScreen(onBack: () -> Unit) {
                                 if (filterType != null) PremiumAccent.copy(0.3f) else Color.White.copy(0.1f),
                                 CircleShape
                             )
-                            .size(42.dp)
+                            .size(44.dp)
                     ) {
                         Icon(
                             Icons.Rounded.FilterList,
@@ -247,7 +249,7 @@ fun HistoryScreen(onBack: () -> Unit) {
                         modifier = Modifier
                             .background(PremiumCard, CircleShape)
                             .border(1.dp, Color.White.copy(0.1f), CircleShape)
-                            .size(42.dp)
+                            .size(44.dp)
                     ) {
                         Icon(
                             Icons.Rounded.Delete,
@@ -261,7 +263,7 @@ fun HistoryScreen(onBack: () -> Unit) {
                 }
             }
 
-            // 🔥 СТАТИСТИКА
+            // 🔥 СТАТИСТИКА (Исправленная высота)
             if (events.isNotEmpty()) {
                 Row(
                     modifier = Modifier
@@ -340,7 +342,7 @@ fun HistoryScreen(onBack: () -> Unit) {
 
                     LazyColumn(
                         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         filteredGroups.forEach { (group, groupClusters) ->
                             item(key = "header_${group.title}") {
@@ -349,8 +351,8 @@ fun HistoryScreen(onBack: () -> Unit) {
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = PremiumTextSec,
-                                    letterSpacing = 0.8.sp,
-                                    modifier = Modifier.padding(vertical = 12.dp)
+                                    letterSpacing = 0.5.sp,
+                                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
                                 )
                             }
                             
@@ -392,7 +394,7 @@ fun HistoryScreen(onBack: () -> Unit) {
                 Card(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(top = 80.dp, end = 20.dp)
+                        .padding(top = 90.dp, end = 20.dp)
                         .width(220.dp)
                         .shadow(16.dp, RoundedCornerShape(20.dp)),
                     colors = CardDefaults.cardColors(containerColor = PremiumCard),
@@ -497,7 +499,6 @@ fun HistoryScreen(onBack: () -> Unit) {
     }
 }
 
-// 🔥 КАРТОЧКА КЛАСТЕРА СОБЫТИЙ
 @Composable
 fun ClusterCard(
     cluster: EventCluster,
@@ -525,11 +526,12 @@ fun ClusterCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            // 🔥 СТАНДАРТИЗАЦИЯ СКРУГЛЕНИЯ 24.dp КАК В ГЛАВНОМ МЕНЮ
+            .clip(RoundedCornerShape(24.dp))
             .clickable { isExpanded = !isExpanded }
-            .border(1.dp, Color.White.copy(0.05f), RoundedCornerShape(20.dp)),
+            .border(1.dp, Color.White.copy(0.05f), RoundedCornerShape(24.dp)),
         colors = CardDefaults.cardColors(containerColor = PremiumCard),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(24.dp),
         elevation = CardDefaults.cardElevation(0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -544,7 +546,7 @@ fun ClusterCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(42.dp)
+                            .size(40.dp)
                             .background(eventType.color.copy(0.15f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
@@ -556,33 +558,31 @@ fun ClusterCard(
                         )
                     }
 
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(16.dp))
 
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = cluster.mainEvent.title,
                                 fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = FontWeight.SemiBold,
                                 color = PremiumText,
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                lineHeight = 18.sp
+                                overflow = TextOverflow.Ellipsis
                             )
                             
-                            // 🔥 БЕЙДЖ КОЛИЧЕСТВА
                             if (cluster.count > 1) {
-                                Spacer(Modifier.width(8.dp))
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = eventType.color.copy(0.2f)
+                                Spacer(Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .background(eventType.color.copy(0.2f), RoundedCornerShape(6.dp))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = "×${cluster.count}",
-                                        fontSize = 11.sp,
+                                        text = "+${cluster.count}",
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = eventType.color,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        color = eventType.color
                                     )
                                 }
                             }
@@ -591,8 +591,7 @@ fun ClusterCard(
                         Text(
                             text = timeText,
                             fontSize = 12.sp,
-                            color = PremiumTextSec,
-                            modifier = Modifier.padding(top = 2.dp)
+                            color = PremiumTextSec
                         )
                     }
                 }
@@ -605,7 +604,6 @@ fun ClusterCard(
                 )
             }
 
-            // 🔥 ПРЕВЬЮ ФОТО (если есть)
             if (cluster.hasImages && cluster.images.size <= 4 && !isExpanded) {
                 Spacer(Modifier.height(12.dp))
                 ImagePreviewGrid(
@@ -614,18 +612,18 @@ fun ClusterCard(
                 )
             }
 
-            // 🔥 РАЗВЕРНУТЫЙ КОНТЕНТ
             AnimatedVisibility(
                 visible = isExpanded,
                 enter = expandVertically() + fadeIn(),
                 exit = shrinkVertically() + fadeOut()
             ) {
                 Column(modifier = Modifier.padding(top = 12.dp)) {
+                    Divider(color = Color.White.copy(0.05f), thickness = 1.dp)
+                    Spacer(Modifier.height(12.dp))
+
                     cluster.events.forEachIndexed { index, event ->
                         if (index > 0) {
-                            Spacer(Modifier.height(12.dp))
-                            Divider(color = Color.White.copy(0.05f), thickness = 1.dp)
-                            Spacer(Modifier.height(12.dp))
+                            Spacer(Modifier.height(16.dp))
                         }
                         
                         Column {
@@ -644,9 +642,8 @@ fun ClusterCard(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(200.dp)
-                                        .clip(RoundedCornerShape(16.dp))
+                                        .clip(RoundedCornerShape(12.dp))
                                         .clickable { onImageClick(listOf(event.imagePath)) }
-                                        .shadow(8.dp, RoundedCornerShape(16.dp))
                                 ) {
                                     Image(
                                         painter = rememberAsyncImagePainter(File(event.imagePath)),
@@ -655,11 +652,10 @@ fun ClusterCard(
                                         modifier = Modifier.fillMaxSize()
                                     )
                                     
-                                    // Индикатор что можно открыть
                                     Box(
                                         modifier = Modifier
                                             .align(Alignment.BottomEnd)
-                                            .padding(12.dp)
+                                            .padding(8.dp)
                                             .size(32.dp)
                                             .background(Color.Black.copy(0.5f), CircleShape),
                                         contentAlignment = Alignment.Center
@@ -668,7 +664,7 @@ fun ClusterCard(
                                             Icons.Rounded.ZoomIn,
                                             null,
                                             tint = Color.White,
-                                            modifier = Modifier.size(18.dp)
+                                            modifier = Modifier.size(16.dp)
                                         )
                                     }
                                 }
@@ -681,7 +677,6 @@ fun ClusterCard(
     }
 }
 
-// 🔥 СЕТКА ПРЕВЬЮ ФОТО
 @Composable
 fun ImagePreviewGrid(images: List<String>, onClick: () -> Unit) {
     when (images.size) {
@@ -689,7 +684,7 @@ fun ImagePreviewGrid(images: List<String>, onClick: () -> Unit) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(150.dp)
+                    .height(140.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .clickable(onClick = onClick)
             ) {
@@ -710,7 +705,7 @@ fun ImagePreviewGrid(images: List<String>, onClick: () -> Unit) {
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(120.dp)
+                            .height(100.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .clickable(onClick = onClick)
                     ) {
@@ -733,7 +728,7 @@ fun ImagePreviewGrid(images: List<String>, onClick: () -> Unit) {
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(100.dp)
+                            .height(90.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .clickable(onClick = onClick)
                     ) {
@@ -754,7 +749,7 @@ fun ImagePreviewGrid(images: List<String>, onClick: () -> Unit) {
                                 Text(
                                     "+${images.size - 3}",
                                     color = Color.White,
-                                    fontSize = 20.sp,
+                                    fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -766,7 +761,6 @@ fun ImagePreviewGrid(images: List<String>, onClick: () -> Unit) {
     }
 }
 
-// 🔥 ПОЛНОЭКРАННЫЙ ПРОСМОТР ФОТО С PAGER
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ImageViewerDialog(
@@ -787,7 +781,6 @@ fun ImageViewerDialog(
                 .fillMaxSize()
                 .background(Color.Black)
         ) {
-            // PAGER С ФОТО
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize()
@@ -805,7 +798,6 @@ fun ImageViewerDialog(
                 }
             }
 
-            // ЗАКРЫТЬ
             IconButton(
                 onClick = onDismiss,
                 modifier = Modifier
@@ -822,7 +814,6 @@ fun ImageViewerDialog(
                 )
             }
 
-            // ИНДИКАТОР СТРАНИЦ
             if (images.size > 1) {
                 Surface(
                     modifier = Modifier
@@ -852,42 +843,43 @@ fun StatsCard(
     color: Color,
     modifier: Modifier = Modifier
 ) {
+    // 🔥 ФИКСИРОВАННАЯ ВЫСОТА 100.dp (Стандарт главного меню)
     Box(
         modifier = modifier
-            .height(90.dp)
-            .clip(RoundedCornerShape(20.dp))
+            .height(100.dp)
+            .clip(RoundedCornerShape(20.dp)) // На главном 20.dp, оставляем
             .background(PremiumCard)
             .border(1.dp, Color.White.copy(0.05f), RoundedCornerShape(20.dp))
             .padding(16.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        // Иконка
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .size(38.dp)
+                .background(color.copy(0.15f), CircleShape),
+            contentAlignment = Alignment.Center
         ) {
-            Column {
-                Text(
-                    text = title,
-                    fontSize = 11.sp,
-                    color = PremiumTextSec,
-                    lineHeight = 13.sp
-                )
-                Text(
-                    text = value,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = PremiumText,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .background(color.copy(0.15f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, null, tint = color, modifier = Modifier.size(22.dp))
-            }
+            Icon(icon, null, tint = color, modifier = Modifier.size(20.dp))
+        }
+        
+        // Текст
+        Column(
+            modifier = Modifier.align(Alignment.BottomStart)
+        ) {
+            Text(
+                text = title,
+                fontSize = 11.sp,
+                color = PremiumTextSec,
+                lineHeight = 13.sp
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = value,
+                fontSize = 20.sp, 
+                fontWeight = FontWeight.Black,
+                color = PremiumText
+            )
         }
     }
 }

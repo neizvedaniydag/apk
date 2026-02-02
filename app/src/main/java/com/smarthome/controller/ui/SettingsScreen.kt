@@ -10,7 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -63,11 +63,9 @@ fun SettingsScreen(onBack: () -> Unit) {
     
     // Инициализация дефолтных значений
     LaunchedEffect(Unit) {
-        // 🔥 ИСПРАВЛЕНО: Используем функцию вместо прямого присваивания
         if (SystemState.phoneNumber.isBlank()) SystemState.savePhoneNumber(phoneNumber)
         if (SystemState.mqttSettings.server.isBlank()) {
             val def = MqttSettings(mqttServer, mqttPort.toInt(), mqttUser, mqttPass)
-            // 🔥 ИСПРАВЛЕНО: Убран лишний аргумент, используем функцию
             SystemState.saveMqttSettings(def)
         }
     }
@@ -81,7 +79,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
+        verticalArrangement = Arrangement.spacedBy(32.dp) // Чуть больше воздуха между секциями
     ) {
         // --- 1. ШАПКА (Стиль как на Главном экране) ---
         Row(
@@ -94,9 +92,9 @@ fun SettingsScreen(onBack: () -> Unit) {
                 modifier = Modifier
                     .background(PremiumCard, CircleShape)
                     .border(1.dp, Color.White.copy(0.1f), CircleShape)
-                    .size(42.dp)
+                    .size(44.dp)
             ) {
-                Icon(Icons.Rounded.ArrowBack, null, tint = PremiumText)
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, tint = PremiumText)
             }
             
             Column {
@@ -105,7 +103,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
         }
 
-        // --- CRASH LOG (Появляется только при ошибке) ---
+        // --- CRASH LOG ---
         if (crashLog != null) {
             Box(
                 modifier = Modifier
@@ -143,39 +141,36 @@ fun SettingsScreen(onBack: () -> Unit) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 ModeCard(
                     title = "Гибридный (Рекомендуем)",
-                    desc = "Интернет + SMS резерв. Максимальная надежность.",
+                    desc = "Интернет + SMS резерв",
                     icon = Icons.Rounded.Security,
                     selected = connectionMode == ConnectionMode.HYBRID,
                     onClick = { 
                         connectionMode = ConnectionMode.HYBRID
                         showMqttSettings = true; showPhoneSettings = true
-                        // 🔥 ИСПРАВЛЕНО: Сначала сохраняем MQTT, потом режим
                         SystemState.saveMqttSettings(MqttSettings(mqttServer, mqttPort.toIntOrNull() ?: 9991, mqttUser, mqttPass))
                         SystemState.saveConnectionMode(ConnectionMode.HYBRID)
                     }
                 )
                 ModeCard(
                     title = "Только Интернет (MQTT)",
-                    desc = "Быстрое управление. Экономит деньги на SMS.",
+                    desc = "Быстро, экономит баланс",
                     icon = Icons.Rounded.Cloud,
                     selected = connectionMode == ConnectionMode.MQTT_ONLY,
                     onClick = { 
                         connectionMode = ConnectionMode.MQTT_ONLY
                         showMqttSettings = true; showPhoneSettings = false
-                        // 🔥 ИСПРАВЛЕНО
                         SystemState.saveMqttSettings(MqttSettings(mqttServer, mqttPort.toIntOrNull() ?: 9991, mqttUser, mqttPass))
                         SystemState.saveConnectionMode(ConnectionMode.MQTT_ONLY)
                     }
                 )
                 ModeCard(
                     title = "Только SMS (Оффлайн)",
-                    desc = "Для мест с плохим интернетом. Полная автономность.",
+                    desc = "Полная автономность",
                     icon = Icons.Rounded.Sms,
                     selected = connectionMode == ConnectionMode.SMS_ONLY,
                     onClick = { 
                         connectionMode = ConnectionMode.SMS_ONLY
                         showMqttSettings = false; showPhoneSettings = true
-                        // 🔥 ИСПРАВЛЕНО
                         SystemState.saveConnectionMode(ConnectionMode.SMS_ONLY)
                     }
                 )
@@ -193,7 +188,6 @@ fun SettingsScreen(onBack: () -> Unit) {
                     
                     SaveButton(text = "Сохранить сервер") {
                         val newSettings = MqttSettings(mqttServer, mqttPort.toIntOrNull() ?: 9991, mqttUser, mqttPass)
-                        // 🔥 ИСПРАВЛЕНО: Только функция, без прямого присваивания
                         SystemState.saveMqttSettings(newSettings)
                         showSavedMessage = true
                     }
@@ -206,8 +200,8 @@ fun SettingsScreen(onBack: () -> Unit) {
             SettingsGroup(title = "SIM-КАРТА УСТРОЙСТВА") {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text(
-                        "Укажите номер SIM-карты, которая стоит в охранной системе.",
-                        fontSize = 13.sp, color = PremiumTextSec, lineHeight = 18.sp
+                        "Номер SIM-карты в охранной системе:",
+                        fontSize = 13.sp, color = PremiumTextSec
                     )
                     PremiumInput(
                         value = phoneNumber, 
@@ -217,7 +211,6 @@ fun SettingsScreen(onBack: () -> Unit) {
                     )
                     
                     SaveButton(text = "Сохранить номер") {
-                        // 🔥 ИСПРАВЛЕНО: Используем функцию
                         SystemState.saveGeneralSettings(phoneNumber, autoUpdate)
                         showSavedMessage = true
                     }
@@ -252,7 +245,6 @@ fun SettingsScreen(onBack: () -> Unit) {
                     checked = autoUpdate,
                     onCheckedChange = {
                         autoUpdate = it
-                        // 🔥 ИСПРАВЛЕНО: Используем функцию вместо прямого присваивания
                         SystemState.saveGeneralSettings(phoneNumber, it)
                     },
                     colors = SwitchDefaults.colors(
@@ -268,7 +260,7 @@ fun SettingsScreen(onBack: () -> Unit) {
         Spacer(Modifier.height(40.dp))
     }
 
-    // --- ВСПЛЫВАШКА СОХРАНЕНИЯ ---
+    // --- ВСПЛЫВАШКА ---
     if (showSavedMessage) {
         LaunchedEffect(Unit) {
             delay(2000)
@@ -290,59 +282,51 @@ fun SettingsScreen(onBack: () -> Unit) {
     }
 }
 
-// --- КОМПОНЕНТЫ (БЕЗ ИЗМЕНЕНИЙ) ---
+// --- КОМПОНЕНТЫ (UI FIX) ---
 
 @Composable
 fun SettingsGroup(title: String, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PremiumTextSec, modifier = Modifier.padding(start = 8.dp))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
-                .background(PremiumCard)
-                .border(1.dp, Color.White.copy(0.05f), RoundedCornerShape(24.dp))
-                .padding(20.dp)
-        ) {
-            content()
-        }
+        Text(title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PremiumTextSec, modifier = Modifier.padding(start = 4.dp))
+        // 🔥 УБРАЛ РАМКУ ВОКРУГ ГРУППЫ - ТЕПЕРЬ КАК НА ГЛАВНОМ
+        content()
     }
 }
 
 @Composable
 fun ModeCard(title: String, desc: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
     val borderColor = if (selected) PremiumAccent else Color.White.copy(0.05f)
-    val bgColor = if (selected) PremiumAccent.copy(0.1f) else Color.Transparent
+    val bgColor = if (selected) PremiumCard else PremiumCard.copy(alpha = 0.5f) // Активная карточка ярче
     
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(18.dp)) // Скругление как у виджетов
             .background(bgColor)
-            .border(1.dp, borderColor, RoundedCornerShape(16.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
-            .padding(12.dp),
+            .padding(16.dp), // Больше отступы внутри
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(44.dp)
-                .background(if (selected) PremiumAccent else PremiumBg, CircleShape),
+                .size(40.dp)
+                .background(if (selected) PremiumAccent.copy(0.2f) else PremiumBg, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, null, tint = if (selected) Color.White else PremiumTextSec)
+            Icon(icon, null, tint = if (selected) PremiumAccent else PremiumTextSec)
         }
         
         Spacer(Modifier.width(16.dp))
         
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = PremiumText)
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = if (selected) PremiumText else PremiumText.copy(0.8f))
             Text(desc, fontSize = 12.sp, color = PremiumTextSec, lineHeight = 16.sp)
         }
         
         if (selected) {
             Spacer(Modifier.width(8.dp))
-            Icon(Icons.Rounded.CheckCircle, null, tint = PremiumAccent)
+            Icon(Icons.Rounded.CheckCircle, null, tint = PremiumAccent, modifier = Modifier.size(20.dp))
         }
     }
 }
@@ -351,35 +335,34 @@ fun ModeCard(title: String, desc: String, icon: ImageVector, selected: Boolean, 
 fun PremiumInput(value: String, onValueChange: (String) -> Unit, label: String, icon: ImageVector, isPassword: Boolean = false) {
     val visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None
     
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, fontSize = 12.sp, color = PremiumTextSec)
-        OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            shape = RoundedCornerShape(12.dp),
-            leadingIcon = { Icon(icon, null, tint = PremiumTextSec) },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = PremiumBg,
-                unfocusedContainerColor = PremiumBg,
-                focusedBorderColor = PremiumAccent,
-                unfocusedBorderColor = Color.White.copy(0.1f),
-                focusedTextColor = PremiumText,
-                unfocusedTextColor = PremiumText,
-                cursorColor = PremiumAccent
-            ),
-            visualTransformation = visualTransformation
-        )
-    }
+    // Стиль инпута "под виджет"
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text(label, color = PremiumTextSec) },
+        singleLine = true,
+        shape = RoundedCornerShape(18.dp),
+        leadingIcon = { Icon(icon, null, tint = PremiumTextSec) },
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = PremiumCard,
+            unfocusedContainerColor = PremiumCard,
+            focusedBorderColor = PremiumAccent,
+            unfocusedBorderColor = Color.White.copy(0.05f),
+            focusedTextColor = PremiumText,
+            unfocusedTextColor = PremiumText,
+            cursorColor = PremiumAccent
+        ),
+        visualTransformation = visualTransformation
+    )
 }
 
 @Composable
 fun SaveButton(text: String, onClick: () -> Unit) {
     Button(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(50.dp),
-        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.fillMaxWidth().height(52.dp),
+        shape = RoundedCornerShape(18.dp), // Кнопка тоже округлая
         colors = ButtonDefaults.buttonColors(containerColor = PremiumAccent)
     ) {
         Text(text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
