@@ -1,0 +1,19 @@
+# Build files
+.gradle/
+build/
+app/build/
+*.apk
+*.class
+*.dex
+
+# System files
+.DS_Store
+local.properties
+
+# Kotlin
+*.kotlin_module
+*.apk
+
+build/
+app/build/
+.gradle/
